@@ -1,0 +1,42 @@
+ConversationStatus:
+  type: string
+  enum: [active, archived]
+
+Conversation:
+  type: object
+  required: [id, title, status, created_at, updated_at]
+  properties:
+    id: { $ref: common.yaml#/UUID }
+    title: { type: string, maxLength: 200 }
+    status: { $ref: '#/ConversationStatus' }
+    incident_id: { $ref: common.yaml#/UUID, nullable: true }
+    inspection_id: { $ref: common.yaml#/UUID, nullable: true }
+    entity_id: { $ref: common.yaml#/UUID, nullable: true }
+    created_at: { $ref: common.yaml#/Timestamp }
+    updated_at: { $ref: common.yaml#/Timestamp }
+
+ConversationCreateRequest:
+  type: object
+  properties:
+    title: { type: string, maxLength: 200 }
+    incident_id: { $ref: common.yaml#/UUID }
+    inspection_id: { $ref: common.yaml#/UUID }
+    entity_id: { $ref: common.yaml#/UUID }
+    initial_message: { type: string, maxLength: 20000 }
+    idempotency_key: { $ref: common.yaml#/IdempotencyKey }
+
+ConversationUpdateRequest:
+  type: object
+  minProperties: 1
+  properties:
+    title: { type: string, minLength: 1, maxLength: 200 }
+    status: { $ref: '#/ConversationStatus' }
+
+ConversationPage:
+  allOf:
+    - $ref: common.yaml#/PagedResult
+    - type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/Conversation' }

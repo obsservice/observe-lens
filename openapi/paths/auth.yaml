@@ -1,0 +1,30 @@
+login:
+  post:
+    tags: [Authentication]
+    summary: Sign in
+    operationId: login
+    security: []
+    requestBody: { required: true, content: { application/json: { schema: { $ref: ../schemas/auth.yaml#/LoginRequest } } } }
+    responses:
+      '200': { description: Authenticated, content: { application/json: { schema: { $ref: ../schemas/auth.yaml#/TokenPair } } } }
+      '401': { $ref: ../components/responses.yaml#/Unauthorized }
+logout:
+  post:
+    tags: [Authentication]
+    summary: Sign out
+    operationId: logout
+    responses: { '204': { description: Signed out } }
+me:
+  get:
+    tags: [Authentication]
+    summary: Get current user
+    operationId: getCurrentUser
+    responses: { '200': { description: Current user, content: { application/json: { schema: { $ref: ../schemas/auth.yaml#/CurrentUser } } } } }
+refresh:
+  post:
+    tags: [Authentication]
+    summary: Refresh access token
+    operationId: refreshToken
+    security: []
+    requestBody: { required: true, content: { application/json: { schema: { $ref: ../schemas/auth.yaml#/RefreshTokenRequest } } } }
+    responses: { '200': { description: Refreshed tokens, content: { application/json: { schema: { $ref: ../schemas/auth.yaml#/TokenPair } } } }, '401': { $ref: ../components/responses.yaml#/Unauthorized } }

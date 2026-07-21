@@ -1,0 +1,144 @@
+###########################################################
+# Common Query Parameters
+###########################################################
+
+Page:
+  name: page
+  in: query
+  description: Page number.
+  required: false
+  schema:
+    type: integer
+    minimum: 1
+    default: 1
+
+PageSize:
+  name: page_size
+  in: query
+  description: Number of items per page.
+  required: false
+  schema:
+    type: integer
+    minimum: 1
+    maximum: 100
+    default: 20
+
+Keyword:
+  name: keyword
+  in: query
+  description: Search keyword.
+  required: false
+  schema:
+    type: string
+
+SortBy:
+  name: sort_by
+  in: query
+  description: Sort field.
+  required: false
+  schema:
+    type: string
+
+Order:
+  name: order
+  in: query
+  description: Sort order.
+  required: false
+  schema:
+    type: string
+    enum:
+      - asc
+      - desc
+    default: desc
+
+###########################################################
+# Common Path Parameters
+###########################################################
+
+ConversationId:
+  name: conversation_id
+  in: path
+  required: true
+  description: Conversation ID.
+  schema:
+    $ref: ../schemas/common.yaml#/UUID
+
+MessageId:
+  name: message_id
+  in: path
+  required: true
+  description: Message ID.
+  schema:
+    $ref: ../schemas/common.yaml#/UUID
+
+RunId:
+  name: run_id
+  in: path
+  required: true
+  description: Run ID.
+  schema:
+    $ref: ../schemas/common.yaml#/UUID
+
+ObservationId:
+  name: observation_id
+  in: path
+  required: true
+  description: Observation ID.
+  schema:
+    $ref: ../schemas/common.yaml#/UUID
+
+IncidentId:
+  name: incident_id
+  in: path
+  required: true
+  description: Incident ID.
+  schema:
+    $ref: ../schemas/common.yaml#/UUID
+
+IntegrationId:
+  name: integration_id
+  in: path
+  required: true
+  description: Integration ID.
+  schema:
+    $ref: ../schemas/common.yaml#/UUID
+
+InspectionId:
+  name: inspection_id
+  in: path
+  required: true
+  description: Inspection ID.
+  schema:
+    $ref: ../schemas/common.yaml#/UUID
+
+EntityId:
+  name: entity_id
+  in: path
+  required: true
+  description: Entity ID.
+  schema:
+    $ref: ../schemas/common.yaml#/UUID
+
+FileId:
+  name: file_id
+  in: path
+  required: true
+  description: Knowledge file ID.
+  schema:
+    $ref: ../schemas/common.yaml#/UUID
+
+ModelId:
+  name: model_id
+  in: path
+  required: true
+  description: Model ID.
+  schema:
+    $ref: ../schemas/common.yaml#/UUID
+
+NotificationId:
+  name: notification_id
+  in: path
+  required: true
+  description: Notification ID.
+  schema:
+    $ref: ../schemas/common.yaml#/UUID

@@ -1,0 +1,61 @@
+IncidentSeverity: { type: string, enum: [critical, warning, info] }
+IncidentStatus: { type: string, enum: [open, investigating, resolved, archived] }
+Incident:
+  type: object
+  required: [id, name, severity, status, source, created_at, updated_at]
+  properties:
+    id: { $ref: common.yaml#/UUID }
+    name: { type: string }
+    description: { type: string, nullable: true }
+    severity: { $ref: '#/IncidentSeverity' }
+    status: { $ref: '#/IncidentStatus' }
+    source: { type: string }
+    labels: { type: object, additionalProperties: { type: string } }
+    started_at: { $ref: common.yaml#/Timestamp, nullable: true }
+    resolved_at: { $ref: common.yaml#/Timestamp, nullable: true }
+    created_at: { $ref: common.yaml#/Timestamp }
+    updated_at: { $ref: common.yaml#/Timestamp }
+IncidentCreateRequest:
+  type: object
+  required: [name, severity, source]
+  properties:
+    name: { type: string, maxLength: 200 }
+    description: { type: string }
+    severity: { $ref: '#/IncidentSeverity' }
+    source: { type: string }
+    labels: { type: object, additionalProperties: { type: string } }
+    started_at: { $ref: common.yaml#/Timestamp }
+    idempotency_key: { $ref: common.yaml#/IdempotencyKey }
+IncidentUpdateRequest:
+  type: object
+  minProperties: 1
+  properties:
+    name: { type: string, maxLength: 200 }
+    description: { type: string }
+    severity: { $ref: '#/IncidentSeverity' }
+    status: { $ref: '#/IncidentStatus' }
+IncidentPage:
+  allOf: [{ $ref: common.yaml#/PagedResult }, { type: object, properties: { items: { type: array, items: { $ref: '#/Incident' } } } }]
+IncidentIntegration:
+  type: object
+  required: [id, name, status, webhook_url, created_at]
+  properties:
+    id: { $ref: common.yaml#/UUID }
+    name: { type: string }
+    status: { type: string, enum: [enabled, disabled] }
+    webhook_url: { type: string, format: uri }
+    token_hint: { type: string, description: Masked token }
+    created_at: { $ref: common.yaml#/Timestamp }
+    updated_at: { $ref: common.yaml#/Timestamp }
+IntegrationCreateRequest:
+  type: object
+  required: [name]
+  properties:
+    name: { type: string }
+    status: { type: string, enum: [enabled, disabled], default: enabled }
+IntegrationUpdateRequest:
+  type: object
+  minProperties: 1
+  properties:
+    name: { type: string }
+    status: { type: string, enum: [enabled, disabled] }

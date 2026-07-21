@@ -1,0 +1,12 @@
+BadRequest:
+  description: Invalid request.
+  content: { application/json: { schema: { $ref: ../schemas/common.yaml#/ErrorResponse } } }
+Unauthorized:
+  description: Authentication failed or is required.
+  content: { application/json: { schema: { $ref: ../schemas/common.yaml#/ErrorResponse } } }
+NotFound:
+  description: Resource not found.
+  content: { application/json: { schema: { $ref: ../schemas/common.yaml#/ErrorResponse } } }
+Conflict:
+  description: Request conflicts with current resource state.
+  content: { application/json: { schema: { $ref: ../schemas/common.yaml#/ErrorResponse } } }

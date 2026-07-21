@@ -1,0 +1,32 @@
+conversationMessages:
+  get:
+    tags: [Message]
+    summary: List conversation messages
+    operationId: listMessages
+    parameters: [{ $ref: ../components/parameters.yaml#/ConversationId }, { $ref: ../components/parameters.yaml#/Page }, { $ref: ../components/parameters.yaml#/PageSize }]
+    responses: { '200': { description: Message list, content: { application/json: { schema: { $ref: ../schemas/message.yaml#/MessagePage } } } } }
+  post:
+    tags: [Message]
+    summary: Create a message and start an investigation
+    description: Creates a user message and returns an SSE stream of AESP events for the generated run.
+    operationId: createMessageStream
+    parameters: [{ $ref: ../components/parameters.yaml#/ConversationId }]
+    requestBody: { required: true, content: { application/json: { schema: { $ref: ../schemas/message.yaml#/MessageCreateRequest } } } }
+    responses:
+      '200':
+        description: AESP event stream.
+        content: { text/event-stream: { schema: { $ref: ../schemas/run.yaml#/AESPEvent } } }
+      '404': { $ref: ../components/responses.yaml#/NotFound }
+message:
+  get:
+    tags: [Message]
+    summary: Get message
+    operationId: getMessage
+    parameters: [{ $ref: ../components/parameters.yaml#/MessageId }]
+    responses: { '200': { description: Message detail, content: { application/json: { schema: { $ref: ../schemas/message.yaml#/Message } } } }, '404': { $ref: ../components/responses.yaml#/NotFound } }
+  delete:
+    tags: [Message]
+    summary: Delete message
+    operationId: deleteMessage
+    parameters: [{ $ref: ../components/parameters.yaml#/MessageId }]
+    responses: { '204': { description: Deleted }, '404': { $ref: ../components/responses.yaml#/NotFound } }

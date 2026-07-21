@@ -1,0 +1,22 @@
+SystemInfo:
+  type: object
+  required: [name, environment, version]
+  properties:
+    name: { type: string, example: ObserveLens }
+    environment: { type: string, example: production }
+    version: { type: string }
+    build_time: { $ref: common.yaml#/Timestamp }
+SystemVersion:
+  type: object
+  required: [version]
+  properties:
+    version: { type: string }
+    commit: { type: string }
+HealthStatus:
+  type: object
+  required: [status, checks]
+  properties:
+    status: { type: string, enum: [healthy, degraded, unhealthy] }
+    checks:
+      type: object
+      additionalProperties: { type: string, enum: [healthy, unhealthy, unknown] }

@@ -1,0 +1,58 @@
+inspections:
+  get:
+    tags: [Inspection]
+    summary: List inspections
+    operationId: listInspections
+    parameters: [{ $ref: ../components/parameters.yaml#/Page }, { $ref: ../components/parameters.yaml#/PageSize }, { $ref: ../components/parameters.yaml#/Keyword }, { name: status, in: query, schema: { $ref: ../schemas/inspection.yaml#/InspectionStatus } }]
+    responses: { '200': { description: Inspection list, content: { application/json: { schema: { $ref: ../schemas/inspection.yaml#/InspectionPage } } } } }
+  post:
+    tags: [Inspection]
+    summary: Create inspection
+    operationId: createInspection
+    requestBody: { required: true, content: { application/json: { schema: { $ref: ../schemas/inspection.yaml#/InspectionCreateRequest } } } }
+    responses: { '201': { description: Created, content: { application/json: { schema: { $ref: ../schemas/inspection.yaml#/Inspection } } } } }
+inspection:
+  get:
+    tags: [Inspection]
+    summary: Get inspection
+    operationId: getInspection
+    parameters: [{ $ref: ../components/parameters.yaml#/InspectionId }]
+    responses: { '200': { description: Inspection, content: { application/json: { schema: { $ref: ../schemas/inspection.yaml#/Inspection } } } } }
+  patch:
+    tags: [Inspection]
+    summary: Update inspection
+    operationId: updateInspection
+    parameters: [{ $ref: ../components/parameters.yaml#/InspectionId }]
+    requestBody: { required: true, content: { application/json: { schema: { $ref: ../schemas/inspection.yaml#/InspectionUpdateRequest } } } }
+    responses: { '200': { description: Updated, content: { application/json: { schema: { $ref: ../schemas/inspection.yaml#/Inspection } } } } }
+  delete:
+    tags: [Inspection]
+    summary: Delete inspection
+    operationId: deleteInspection
+    parameters: [{ $ref: ../components/parameters.yaml#/InspectionId }]
+    responses: { '204': { description: Deleted } }
+execute:
+  post:
+    tags: [Inspection]
+    summary: Execute inspection now
+    operationId: executeInspection
+    parameters: [{ $ref: ../components/parameters.yaml#/InspectionId }]
+    responses: { '202': { description: Execution started, content: { application/json: { schema: { $ref: ../schemas/inspection.yaml#/InspectionExecution } } } }, '409': { $ref: ../components/responses.yaml#/Conflict } }
+enable:
+  post:
+    tags: [Inspection]
+    summary: Enable scheduled inspection
+    operationId: enableInspection
+    parameters: [{ $ref: ../components/parameters.yaml#/InspectionId }]
+    responses: { '200': { description: Enabled, content: { application/json: { schema: { $ref: ../schemas/inspection.yaml#/Inspection } } } } }
+disable:
+  post:
+    tags: [Inspection]
+    summary: Disable scheduled inspection
+    operationId: disableInspection
+    parameters: [{ $ref: ../components/parameters.yaml#/InspectionId }]
+    responses: { '200': { description: Disabled, content: { application/json: { schema: { $ref: ../schemas/inspection.yaml#/Inspection } } } } }
+statuses:
+  get: { tags: [Inspection], summary: List inspection statuses, operationId: listInspectionStatuses, responses: { '200': { description: Statuses, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/common.yaml#/Option } } } } } } }
+schedules:
+  get: { tags: [Inspection], summary: List available schedules, operationId: listInspectionSchedules, responses: { '200': { description: Schedules, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/common.yaml#/Option } } } } } } }

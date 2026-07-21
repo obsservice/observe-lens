@@ -1,0 +1,30 @@
+MessageRole:
+  type: string
+  enum: [user, assistant, system]
+
+Message:
+  type: object
+  required: [id, conversation_id, role, content, created_at]
+  properties:
+    id: { $ref: common.yaml#/UUID }
+    conversation_id: { $ref: common.yaml#/UUID }
+    run_id: { $ref: common.yaml#/UUID, nullable: true }
+    role: { $ref: '#/MessageRole' }
+    content: { type: string }
+    created_at: { $ref: common.yaml#/Timestamp }
+
+MessageCreateRequest:
+  type: object
+  required: [content]
+  properties:
+    content: { type: string, minLength: 1, maxLength: 20000 }
+    idempotency_key: { $ref: common.yaml#/IdempotencyKey }
+
+MessagePage:
+  allOf:
+    - $ref: common.yaml#/PagedResult
+    - type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/Message' }

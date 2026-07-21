@@ -1,0 +1,37 @@
+NotificationStatus: { type: string, enum: [enabled, disabled] }
+Notification:
+  type: object
+  required: [id, name, type, status, target, created_at, updated_at]
+  properties:
+    id: { $ref: common.yaml#/UUID }
+    name: { type: string }
+    type: { type: string, enum: [webhook, email] }
+    status: { $ref: '#/NotificationStatus' }
+    target: { type: string }
+    created_at: { $ref: common.yaml#/Timestamp }
+    updated_at: { $ref: common.yaml#/Timestamp }
+NotificationWriteRequest:
+  type: object
+  required: [name, type, target]
+  properties:
+    name: { type: string }
+    type: { type: string, enum: [webhook, email] }
+    target: { type: string }
+    status: { $ref: '#/NotificationStatus' }
+    secret: { type: string, writeOnly: true }
+NotificationUpdateRequest:
+  type: object
+  minProperties: 1
+  properties:
+    name: { type: string }
+    target: { type: string }
+    status: { $ref: '#/NotificationStatus' }
+    secret: { type: string, writeOnly: true }
+NotificationTestResult:
+  type: object
+  required: [status]
+  properties:
+    status: { type: string, enum: [sent, failed] }
+    message: { type: string }
+NotificationPage:
+  allOf: [{ $ref: common.yaml#/PagedResult }, { type: object, properties: { items: { type: array, items: { $ref: '#/Notification' } } } }]

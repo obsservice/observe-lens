@@ -1,0 +1,11 @@
+info:
+  get: { tags: [System], summary: Get system information, operationId: getSystemInfo, responses: { '200': { description: System information, content: { application/json: { schema: { $ref: ../schemas/system.yaml#/SystemInfo } } } } } }
+version:
+  get: { tags: [System], summary: Get system version, operationId: getSystemVersion, responses: { '200': { description: System version, content: { application/json: { schema: { $ref: ../schemas/system.yaml#/SystemVersion } } } } } }
+health:
+  get:
+    tags: [System]
+    summary: Get system health
+    operationId: getSystemHealth
+    security: []
+    responses: { '200': { description: Healthy or degraded, content: { application/json: { schema: { $ref: ../schemas/system.yaml#/HealthStatus } } } }, '503': { description: Unhealthy, content: { application/json: { schema: { $ref: ../schemas/system.yaml#/HealthStatus } } } } }

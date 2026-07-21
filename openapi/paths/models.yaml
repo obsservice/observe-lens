@@ -1,0 +1,51 @@
+models:
+  get:
+    tags: [Model]
+    summary: List model configurations
+    operationId: listModels
+    parameters: [{ $ref: ../components/parameters.yaml#/Page }, { $ref: ../components/parameters.yaml#/PageSize }]
+    responses: { '200': { description: Model list, content: { application/json: { schema: { $ref: ../schemas/model.yaml#/ModelPage } } } } }
+  post:
+    tags: [Model]
+    summary: Add model configuration
+    operationId: createModel
+    requestBody: { required: true, content: { application/json: { schema: { $ref: ../schemas/model.yaml#/ModelWriteRequest } } } }
+    responses: { '201': { description: Created, content: { application/json: { schema: { $ref: ../schemas/model.yaml#/Model } } } } }
+model:
+  get:
+    tags: [Model]
+    summary: Get model configuration
+    operationId: getModel
+    parameters: [{ $ref: ../components/parameters.yaml#/ModelId }]
+    responses: { '200': { description: Model, content: { application/json: { schema: { $ref: ../schemas/model.yaml#/Model } } } } }
+  patch:
+    tags: [Model]
+    summary: Update model configuration
+    operationId: updateModel
+    parameters: [{ $ref: ../components/parameters.yaml#/ModelId }]
+    requestBody: { required: true, content: { application/json: { schema: { $ref: ../schemas/model.yaml#/ModelUpdateRequest } } } }
+    responses: { '200': { description: Updated, content: { application/json: { schema: { $ref: ../schemas/model.yaml#/Model } } } } }
+  delete:
+    tags: [Model]
+    summary: Delete model configuration
+    operationId: deleteModel
+    parameters: [{ $ref: ../components/parameters.yaml#/ModelId }]
+    responses: { '204': { description: Deleted } }
+test:
+  post:
+    tags: [Model]
+    summary: Test model connectivity
+    operationId: testModel
+    parameters: [{ $ref: ../components/parameters.yaml#/ModelId }]
+    responses: { '200': { description: Test result, content: { application/json: { schema: { $ref: ../schemas/model.yaml#/ModelTestResult } } } } }
+setDefault:
+  post:
+    tags: [Model]
+    summary: Set default model
+    operationId: setDefaultModel
+    parameters: [{ $ref: ../components/parameters.yaml#/ModelId }]
+    responses: { '200': { description: Default model updated, content: { application/json: { schema: { $ref: ../schemas/model.yaml#/Model } } } } }
+providers:
+  get: { tags: [Model], summary: List model providers, operationId: listModelProviders, responses: { '200': { description: Providers, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/common.yaml#/Option } } } } } } }
+statuses:
+  get: { tags: [Model], summary: List model statuses, operationId: listModelStatuses, responses: { '200': { description: Statuses, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/common.yaml#/Option } } } } } } }

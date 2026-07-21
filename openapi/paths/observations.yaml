@@ -1,0 +1,7 @@
+observation:
+  get:
+    tags: [Observation]
+    summary: Get investigation observation
+    operationId: getObservation
+    parameters: [{ $ref: ../components/parameters.yaml#/ObservationId }]
+    responses: { '200': { description: Observation detail, content: { application/json: { schema: { $ref: ../schemas/run.yaml#/Observation } } } }, '404': { $ref: ../components/responses.yaml#/NotFound } }

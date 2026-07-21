@@ -1,0 +1,42 @@
+run:
+  get:
+    tags: [Run]
+    summary: Get run
+    operationId: getRun
+    parameters: [{ $ref: ../components/parameters.yaml#/RunId }]
+    responses: { '200': { description: Run detail, content: { application/json: { schema: { $ref: ../schemas/run.yaml#/Run } } } }, '404': { $ref: ../components/responses.yaml#/NotFound } }
+steps:
+  get:
+    tags: [Run]
+    summary: List run steps
+    operationId: listRunSteps
+    parameters: [{ $ref: ../components/parameters.yaml#/RunId }]
+    responses: { '200': { description: Run steps, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/run.yaml#/RunStep } } } } } }
+events:
+  get:
+    tags: [Run]
+    summary: Replay run events
+    operationId: listRunEvents
+    parameters: [{ $ref: ../components/parameters.yaml#/RunId }, { name: after_sequence, in: query, schema: { type: integer, minimum: 0 } }]
+    responses: { '200': { description: AESP event history, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/run.yaml#/AESPEvent } } } } } }
+artifacts:
+  get:
+    tags: [Run]
+    summary: List run artifacts
+    operationId: listRunArtifacts
+    parameters: [{ $ref: ../components/parameters.yaml#/RunId }]
+    responses: { '200': { description: Run artifacts, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/run.yaml#/Artifact } } } } } }
+rca:
+  get:
+    tags: [Run]
+    summary: Get completed RCA result
+    operationId: getRunRca
+    parameters: [{ $ref: ../components/parameters.yaml#/RunId }]
+    responses: { '200': { description: RCA result, content: { application/json: { schema: { $ref: ../schemas/run.yaml#/RcaResult } } } }, '404': { $ref: ../components/responses.yaml#/NotFound } }
+cancel:
+  post:
+    tags: [Run]
+    summary: Cancel a running investigation
+    operationId: cancelRun
+    parameters: [{ $ref: ../components/parameters.yaml#/RunId }]
+    responses: { '202': { description: Cancellation requested, content: { application/json: { schema: { $ref: ../schemas/run.yaml#/Run } } } }, '404': { $ref: ../components/responses.yaml#/NotFound }, '409': { $ref: ../components/responses.yaml#/Conflict } }

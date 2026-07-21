@@ -1,0 +1,44 @@
+notifications:
+  get:
+    tags: [Notification]
+    summary: List notifications
+    operationId: listNotifications
+    parameters: [{ $ref: ../components/parameters.yaml#/Page }, { $ref: ../components/parameters.yaml#/PageSize }]
+    responses: { '200': { description: Notification list, content: { application/json: { schema: { $ref: ../schemas/notification.yaml#/NotificationPage } } } } }
+  post:
+    tags: [Notification]
+    summary: Create notification configuration
+    operationId: createNotification
+    requestBody: { required: true, content: { application/json: { schema: { $ref: ../schemas/notification.yaml#/NotificationWriteRequest } } } }
+    responses: { '201': { description: Created, content: { application/json: { schema: { $ref: ../schemas/notification.yaml#/Notification } } } } }
+notification:
+  get:
+    tags: [Notification]
+    summary: Get notification configuration
+    operationId: getNotification
+    parameters: [{ $ref: ../components/parameters.yaml#/NotificationId }]
+    responses: { '200': { description: Notification, content: { application/json: { schema: { $ref: ../schemas/notification.yaml#/Notification } } } } }
+  patch:
+    tags: [Notification]
+    summary: Update notification configuration
+    operationId: updateNotification
+    parameters: [{ $ref: ../components/parameters.yaml#/NotificationId }]
+    requestBody: { required: true, content: { application/json: { schema: { $ref: ../schemas/notification.yaml#/NotificationUpdateRequest } } } }
+    responses: { '200': { description: Updated, content: { application/json: { schema: { $ref: ../schemas/notification.yaml#/Notification } } } } }
+  delete:
+    tags: [Notification]
+    summary: Delete notification configuration
+    operationId: deleteNotification
+    parameters: [{ $ref: ../components/parameters.yaml#/NotificationId }]
+    responses: { '204': { description: Deleted } }
+test:
+  post:
+    tags: [Notification]
+    summary: Send test notification
+    operationId: testNotification
+    parameters: [{ $ref: ../components/parameters.yaml#/NotificationId }]
+    responses: { '200': { description: Test result, content: { application/json: { schema: { $ref: ../schemas/notification.yaml#/NotificationTestResult } } } } }
+types:
+  get: { tags: [Notification], summary: List notification types, operationId: listNotificationTypes, responses: { '200': { description: Types, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/common.yaml#/Option } } } } } } }
+statuses:
+  get: { tags: [Notification], summary: List notification statuses, operationId: listNotificationStatuses, responses: { '200': { description: Statuses, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/common.yaml#/Option } } } } } } }

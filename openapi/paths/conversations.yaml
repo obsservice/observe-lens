@@ -1,0 +1,111 @@
+conversations:
+
+  get:
+    tags:
+      - Conversation
+    summary: List conversations
+    operationId: listConversations
+    parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+          default: 1
+      - name: page_size
+        in: query
+        schema:
+          type: integer
+          default: 20
+          maximum: 100
+      - name: keyword
+        in: query
+        description: Search by conversation title.
+        schema:
+          type: string
+    responses:
+      "200":
+        description: Conversation list.
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/conversation.yaml#/ConversationPage"
+
+  post:
+    tags:
+      - Conversation
+    summary: Create conversation
+    operationId: createConversation
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../schemas/conversation.yaml#/ConversationCreateRequest"
+    responses:
+      "201":
+        description: Created.
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/conversation.yaml#/Conversation"
+
+conversation:
+
+  get:
+    tags:
+      - Conversation
+    summary: Get conversation
+    operationId: getConversation
+    parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          $ref: "../schemas/common.yaml#/UUID"
+    responses:
+      "200":
+        description: Conversation detail.
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/conversation.yaml#/Conversation"
+
+  patch:
+    tags:
+      - Conversation
+    summary: Update conversation
+    operationId: updateConversation
+    parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          $ref: "../schemas/common.yaml#/UUID"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../schemas/conversation.yaml#/ConversationUpdateRequest"
+    responses:
+      "200":
+        description: Updated.
+        content:
+          application/json:
+            schema:
+              $ref: "../schemas/conversation.yaml#/Conversation"
+
+  delete:
+    tags:
+      - Conversation
+    summary: Delete conversation
+    operationId: deleteConversation
+    parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          $ref: "../schemas/common.yaml#/UUID"
+    responses:
+      "204":
+        description: Deleted.

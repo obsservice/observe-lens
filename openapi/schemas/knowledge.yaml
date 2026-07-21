@@ -1,0 +1,22 @@
+KnowledgeIndexStatus: { type: string, enum: [pending, indexing, success, failed] }
+KnowledgeFile:
+  type: object
+  required: [id, file_name, file_type, size_bytes, index_status, created_at, updated_at]
+  properties:
+    id: { $ref: common.yaml#/UUID }
+    file_name: { type: string }
+    file_type: { type: string }
+    size_bytes: { type: integer, minimum: 0 }
+    index_status: { $ref: '#/KnowledgeIndexStatus' }
+    failure_reason: { type: string, nullable: true }
+    created_at: { $ref: common.yaml#/Timestamp }
+    updated_at: { $ref: common.yaml#/Timestamp }
+KnowledgeFilePage:
+  allOf: [{ $ref: common.yaml#/PagedResult }, { type: object, properties: { items: { type: array, items: { $ref: '#/KnowledgeFile' } } } }]
+KnowledgeFileStatus:
+  type: object
+  required: [file_id, index_status]
+  properties:
+    file_id: { $ref: common.yaml#/UUID }
+    index_status: { $ref: '#/KnowledgeIndexStatus' }
+    failure_reason: { type: string, nullable: true }

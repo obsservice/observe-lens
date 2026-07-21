@@ -1,0 +1,85 @@
+incidents:
+  get:
+    tags: [Incident]
+    summary: List incidents
+    operationId: listIncidents
+    parameters: [{ $ref: ../components/parameters.yaml#/Page }, { $ref: ../components/parameters.yaml#/PageSize }, { $ref: ../components/parameters.yaml#/Keyword }, { name: severity, in: query, schema: { $ref: ../schemas/incident.yaml#/IncidentSeverity } }, { name: status, in: query, schema: { $ref: ../schemas/incident.yaml#/IncidentStatus } }, { name: source, in: query, schema: { type: string } }]
+    responses: { '200': { description: Incident list, content: { application/json: { schema: { $ref: ../schemas/incident.yaml#/IncidentPage } } } } }
+  post:
+    tags: [Incident]
+    summary: Create incident
+    operationId: createIncident
+    requestBody: { required: true, content: { application/json: { schema: { $ref: ../schemas/incident.yaml#/IncidentCreateRequest } } } }
+    responses: { '201': { description: Created, content: { application/json: { schema: { $ref: ../schemas/incident.yaml#/Incident } } } }, '409': { $ref: ../components/responses.yaml#/Conflict } }
+incident:
+  get:
+    tags: [Incident]
+    summary: Get incident
+    operationId: getIncident
+    parameters: [{ $ref: ../components/parameters.yaml#/IncidentId }]
+    responses: { '200': { description: Incident, content: { application/json: { schema: { $ref: ../schemas/incident.yaml#/Incident } } } }, '404': { $ref: ../components/responses.yaml#/NotFound } }
+  patch:
+    tags: [Incident]
+    summary: Update incident
+    operationId: updateIncident
+    parameters: [{ $ref: ../components/parameters.yaml#/IncidentId }]
+    requestBody: { required: true, content: { application/json: { schema: { $ref: ../schemas/incident.yaml#/IncidentUpdateRequest } } } }
+    responses: { '200': { description: Updated, content: { application/json: { schema: { $ref: ../schemas/incident.yaml#/Incident } } } }, '404': { $ref: ../components/responses.yaml#/NotFound } }
+  delete:
+    tags: [Incident]
+    summary: Delete incident
+    operationId: deleteIncident
+    parameters: [{ $ref: ../components/parameters.yaml#/IncidentId }]
+    responses: { '204': { description: Deleted }, '404': { $ref: ../components/responses.yaml#/NotFound } }
+archive:
+  post:
+    tags: [Incident]
+    summary: Archive incident
+    operationId: archiveIncident
+    parameters: [{ $ref: ../components/parameters.yaml#/IncidentId }]
+    responses: { '200': { description: Archived, content: { application/json: { schema: { $ref: ../schemas/incident.yaml#/Incident } } } }, '404': { $ref: ../components/responses.yaml#/NotFound } }
+openConversation:
+  post:
+    tags: [Incident]
+    summary: Open an AI investigation for incident
+    operationId: openIncidentConversation
+    parameters: [{ $ref: ../components/parameters.yaml#/IncidentId }]
+    responses: { '201': { description: Conversation created, content: { application/json: { schema: { $ref: ../schemas/entity.yaml#/OpenConversationResponse } } } }, '404': { $ref: ../components/responses.yaml#/NotFound } }
+integrations:
+  get:
+    tags: [Incident]
+    summary: List incident integrations
+    operationId: listIncidentIntegrations
+    responses: { '200': { description: Integrations, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/incident.yaml#/IncidentIntegration } } } } } }
+  post:
+    tags: [Incident]
+    summary: Create incident webhook integration
+    operationId: createIncidentIntegration
+    requestBody: { required: true, content: { application/json: { schema: { $ref: ../schemas/incident.yaml#/IntegrationCreateRequest } } } }
+    responses: { '201': { description: Created, content: { application/json: { schema: { $ref: ../schemas/incident.yaml#/IncidentIntegration } } } } }
+integration:
+  get:
+    tags: [Incident]
+    summary: Get incident integration
+    operationId: getIncidentIntegration
+    parameters: [{ $ref: ../components/parameters.yaml#/IntegrationId }]
+    responses: { '200': { description: Integration, content: { application/json: { schema: { $ref: ../schemas/incident.yaml#/IncidentIntegration } } } } }
+  patch:
+    tags: [Incident]
+    summary: Update incident integration
+    operationId: updateIncidentIntegration
+    parameters: [{ $ref: ../components/parameters.yaml#/IntegrationId }]
+    requestBody: { required: true, content: { application/json: { schema: { $ref: ../schemas/incident.yaml#/IntegrationUpdateRequest } } } }
+    responses: { '200': { description: Updated, content: { application/json: { schema: { $ref: ../schemas/incident.yaml#/IncidentIntegration } } } } }
+  delete:
+    tags: [Incident]
+    summary: Delete incident integration
+    operationId: deleteIncidentIntegration
+    parameters: [{ $ref: ../components/parameters.yaml#/IntegrationId }]
+    responses: { '204': { description: Deleted } }
+severities:
+  get: { tags: [Incident], summary: List incident severities, operationId: listIncidentSeverities, responses: { '200': { description: Severities, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/common.yaml#/Option } } } } } } }
+statuses:
+  get: { tags: [Incident], summary: List incident statuses, operationId: listIncidentStatuses, responses: { '200': { description: Statuses, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/common.yaml#/Option } } } } } } }
+sources:
+  get: { tags: [Incident], summary: List incident sources, operationId: listIncidentSources, responses: { '200': { description: Sources, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/common.yaml#/Option } } } } } } }

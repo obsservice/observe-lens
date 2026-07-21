@@ -1,0 +1,184 @@
+PageRequest:
+  type: object
+  description: Pagination request.
+  properties:
+    page:
+      type: integer
+      minimum: 1
+      default: 1
+    page_size:
+      type: integer
+      minimum: 1
+      maximum: 100
+      default: 20
+    sort_by:
+      type: string
+    order:
+      type: string
+      enum:
+        - asc
+        - desc
+      default: desc
+  required:
+    - page
+    - page_size
+
+PageResponse:
+  type: object
+  description: Pagination response metadata.
+  properties:
+    total:
+      type: integer
+      example: 125
+    page:
+      type: integer
+      example: 1
+    page_size:
+      type: integer
+      example: 20
+  required:
+    - total
+    - page
+    - page_size
+
+ApiResponse:
+  type: object
+  properties:
+    code:
+      type: integer
+      example: 0
+    message:
+      type: string
+      example: success
+  required:
+    - code
+    - message
+
+ErrorResponse:
+  type: object
+  description: Standard API error response.
+  properties:
+    code:
+      type: string
+      example: RESOURCE_NOT_FOUND
+    message:
+      type: string
+    request_id:
+      type: string
+    details:
+      type: object
+      additionalProperties: true
+  required:
+    - code
+    - message
+    - request_id
+
+UUID:
+  type: string
+  format: uuid
+
+Timestamp:
+  type: string
+  format: date-time
+  example: "2026-07-09T12:30:15Z"
+
+TimeRange:
+  type: object
+  properties:
+    start_time:
+      $ref: "#/Timestamp"
+    end_time:
+      $ref: "#/Timestamp"
+
+IdempotencyKey:
+  type: string
+  minLength: 1
+  maxLength: 128
+  description: Client-generated key used to safely retry a write request.
+
+Option:
+  type: object
+  properties:
+    value:
+      type: string
+    label:
+      type: string
+  required:
+    - value
+    - label
+
+Sort:
+  type: object
+  properties:
+    field:
+      type: string
+    order:
+      type: string
+      enum:
+        - asc
+        - desc
+
+Label:
+  type: object
+  properties:
+    key:
+      type: string
+    value:
+      type: string
+
+KeyValue:
+  type: object
+  properties:
+    key:
+      type: string
+    value:
+      type: string
+
+Resource:
+  type: object
+  properties:
+    id:
+      $ref: "#/UUID"
+    created_at:
+      $ref: "#/Timestamp"
+    updated_at:
+      $ref: "#/Timestamp"
+  required:
+    - id
+    - created_at
+    - updated_at
+
+PagedResult:
+  type: object
+  properties:
+    items:
+      type: array
+      items: {}
+    total:
+      type: integer
+    page:
+      type: integer
+    page_size:
+      type: integer
+  required:
+    - items
+    - total
+    - page
+    - page_size
+
+SSEEvent:
+  type: object
+  description: Standard Server-Sent Event.
+  properties:
+    id:
+      type: string
+    event:
+      type: string
+    retry:
+      type: integer
+    data:
+      type: object
+      additionalProperties: true
+  required:
+    - event
+    - data

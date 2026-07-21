@@ -1,0 +1,40 @@
+InspectionStatus: { type: string, enum: [enabled, disabled, running, success, failed] }
+Inspection:
+  type: object
+  required: [id, name, scope, schedule, status, created_at, updated_at]
+  properties:
+    id: { $ref: common.yaml#/UUID }
+    name: { type: string }
+    description: { type: string, nullable: true }
+    scope: { type: string }
+    schedule: { type: string, description: Cron expression or named schedule }
+    status: { $ref: '#/InspectionStatus' }
+    last_run_at: { $ref: common.yaml#/Timestamp, nullable: true }
+    created_at: { $ref: common.yaml#/Timestamp }
+    updated_at: { $ref: common.yaml#/Timestamp }
+InspectionCreateRequest:
+  type: object
+  required: [name, scope, schedule]
+  properties:
+    name: { type: string, maxLength: 200 }
+    description: { type: string }
+    scope: { type: string }
+    schedule: { type: string }
+    enabled: { type: boolean, default: true }
+    idempotency_key: { $ref: common.yaml#/IdempotencyKey }
+InspectionUpdateRequest:
+  type: object
+  minProperties: 1
+  properties:
+    name: { type: string, maxLength: 200 }
+    description: { type: string }
+    scope: { type: string }
+    schedule: { type: string }
+InspectionPage:
+  allOf: [{ $ref: common.yaml#/PagedResult }, { type: object, properties: { items: { type: array, items: { $ref: '#/Inspection' } } } }]
+InspectionExecution:
+  type: object
+  required: [run_id, status]
+  properties:
+    run_id: { $ref: common.yaml#/UUID }
+    status: { $ref: '#/InspectionStatus' }

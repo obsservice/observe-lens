@@ -1,0 +1,37 @@
+types:
+  get: { tags: [Entity], summary: List entity types, operationId: listEntityTypes, responses: { '200': { description: Entity types, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/common.yaml#/Option } } } } } } }
+search:
+  get:
+    tags: [Entity]
+    summary: Search entities
+    operationId: searchEntities
+    parameters: [{ $ref: ../components/parameters.yaml#/Page }, { $ref: ../components/parameters.yaml#/PageSize }, { name: query, in: query, schema: { type: string } }, { name: type, in: query, schema: { type: string } }]
+    responses: { '200': { description: Entity search result, content: { application/json: { schema: { $ref: ../schemas/entity.yaml#/EntityPage } } } } }
+entity:
+  get:
+    tags: [Entity]
+    summary: Get entity
+    operationId: getEntity
+    parameters: [{ $ref: ../components/parameters.yaml#/EntityId }]
+    responses: { '200': { description: Entity, content: { application/json: { schema: { $ref: ../schemas/entity.yaml#/Entity } } } }, '404': { $ref: ../components/responses.yaml#/NotFound } }
+topology:
+  get:
+    tags: [Entity]
+    summary: Get entity topology
+    operationId: getEntityTopology
+    parameters: [{ $ref: ../components/parameters.yaml#/EntityId }, { name: depth, in: query, schema: { type: integer, minimum: 1, maximum: 5, default: 2 } }]
+    responses: { '200': { description: Entity topology, content: { application/json: { schema: { $ref: ../schemas/entity.yaml#/Topology } } } } }
+relations:
+  get:
+    tags: [Entity]
+    summary: List entity relations
+    operationId: listEntityRelations
+    parameters: [{ $ref: ../components/parameters.yaml#/EntityId }]
+    responses: { '200': { description: Entity relations, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/entity.yaml#/EntityRelation } } } } } }
+openConversation:
+  post:
+    tags: [Entity]
+    summary: Open an AI investigation for entity
+    operationId: openEntityConversation
+    parameters: [{ $ref: ../components/parameters.yaml#/EntityId }]
+    responses: { '201': { description: Conversation created, content: { application/json: { schema: { $ref: ../schemas/entity.yaml#/OpenConversationResponse } } } } }

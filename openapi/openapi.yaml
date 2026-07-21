@@ -1,0 +1,328 @@
+openapi: 3.1.0
+
+info:
+  title: ObserveLens API
+  version: 1.0.0
+  description: |
+    ObserveLens REST API.
+
+    ObserveLens is an AI Native RCA Platform that provides
+    Conversation, Investigation, Incident, Inspection, Entity,
+    Knowledge and System Management APIs.
+
+    All APIs are exposed through observelens-service.
+
+servers:
+  - url: http://localhost:3081/api/v1
+    description: Local Development
+
+  - url: https://observelens.com/api/v1
+    description: Production
+
+tags:
+
+  - name: Authentication
+    description: User authentication
+
+  - name: Conversation
+    description: Conversation management
+
+  - name: Message
+    description: Conversation messages
+
+  - name: Run
+    description: Agent runtime
+
+  - name: Observation
+    description: Investigation observations
+
+  - name: Incident
+    description: Incident management
+
+  - name: Inspection
+    description: Inspection task management
+
+  - name: Entity
+    description: Observability entities
+
+  - name: Knowledge
+    description: Knowledge management
+
+  - name: Model
+    description: LLM model management
+
+  - name: Notification
+    description: Notification configuration
+
+  - name: System
+    description: System information
+
+security:
+  - bearerAuth: []
+
+paths:
+
+  ##############################################################
+  ## Authentication
+  ##############################################################
+
+  /auth/login:
+    $ref: "./paths/auth.yaml#/login"
+
+  /auth/logout:
+    $ref: "./paths/auth.yaml#/logout"
+
+  /auth/me:
+    $ref: "./paths/auth.yaml#/me"
+
+  /auth/refresh:
+    $ref: "./paths/auth.yaml#/refresh"
+
+  ##############################################################
+  ## Conversation
+  ##############################################################
+
+  /conversations:
+    $ref: "./paths/conversations.yaml#/conversations"
+
+  /conversations/{conversation_id}:
+    $ref: "./paths/conversations.yaml#/conversation"
+
+  /conversations/{conversation_id}/messages:
+    $ref: "./paths/messages.yaml#/conversationMessages"
+
+  /messages/{message_id}:
+    $ref: "./paths/messages.yaml#/message"
+
+  ##############################################################
+  ## Run
+  ##############################################################
+
+  /runs/{run_id}:
+    $ref: "./paths/runs.yaml#/run"
+
+  /runs/{run_id}/steps:
+    $ref: "./paths/runs.yaml#/steps"
+
+  /runs/{run_id}/events:
+    $ref: "./paths/runs.yaml#/events"
+
+  /runs/{run_id}/artifacts:
+    $ref: "./paths/runs.yaml#/artifacts"
+
+  /runs/{run_id}/rca:
+    $ref: "./paths/runs.yaml#/rca"
+
+  /runs/{run_id}/cancel:
+    $ref: "./paths/runs.yaml#/cancel"
+
+  ##############################################################
+  ## Observation
+  ##############################################################
+
+  /observations/{observation_id}:
+    $ref: "./paths/observations.yaml#/observation"
+
+  ##############################################################
+  ## Incident
+  ##############################################################
+
+  /incidents:
+    $ref: "./paths/incidents.yaml#/incidents"
+
+  /incidents/{incident_id}:
+    $ref: "./paths/incidents.yaml#/incident"
+
+  /incidents/{incident_id}/archive:
+    $ref: "./paths/incidents.yaml#/archive"
+
+  /incidents/{incident_id}/open-conversation:
+    $ref: "./paths/incidents.yaml#/openConversation"
+
+  /incidents/integrations:
+    $ref: "./paths/incidents.yaml#/integrations"
+
+  /incidents/integrations/{integration_id}:
+    $ref: "./paths/incidents.yaml#/integration"
+
+  /incidents/severities:
+    $ref: "./paths/incidents.yaml#/severities"
+
+  /incidents/statuses:
+    $ref: "./paths/incidents.yaml#/statuses"
+
+  /incidents/sources:
+    $ref: "./paths/incidents.yaml#/sources"
+
+  ##############################################################
+  ## Inspection
+  ##############################################################
+
+  /inspections:
+    $ref: "./paths/inspections.yaml#/inspections"
+
+  /inspections/{inspection_id}:
+    $ref: "./paths/inspections.yaml#/inspection"
+
+  /inspections/{inspection_id}/execute:
+    $ref: "./paths/inspections.yaml#/execute"
+
+  /inspections/{inspection_id}/enable:
+    $ref: "./paths/inspections.yaml#/enable"
+
+  /inspections/{inspection_id}/disable:
+    $ref: "./paths/inspections.yaml#/disable"
+
+  /inspections/statuses:
+    $ref: "./paths/inspections.yaml#/statuses"
+
+  /inspections/schedules:
+    $ref: "./paths/inspections.yaml#/schedules"
+
+  ##############################################################
+  ## Entity
+  ##############################################################
+
+  /entities/types:
+    $ref: "./paths/entities.yaml#/types"
+
+  /entities/search:
+    $ref: "./paths/entities.yaml#/search"
+
+  /entities/{entity_id}:
+    $ref: "./paths/entities.yaml#/entity"
+
+  /entities/{entity_id}/topology:
+    $ref: "./paths/entities.yaml#/topology"
+
+  /entities/{entity_id}/relations:
+    $ref: "./paths/entities.yaml#/relations"
+
+  /entities/{entity_id}/open-conversation:
+    $ref: "./paths/entities.yaml#/openConversation"
+
+  ##############################################################
+  ## Knowledge
+  ##############################################################
+
+  /knowledge/files:
+    $ref: "./paths/knowledge.yaml#/files"
+
+  /knowledge/files/{file_id}:
+    $ref: "./paths/knowledge.yaml#/file"
+
+  /knowledge/files/{file_id}/status:
+    $ref: "./paths/knowledge.yaml#/status"
+
+  /knowledge/files/{file_id}/reindex:
+    $ref: "./paths/knowledge.yaml#/reindex"
+
+  /knowledge/file-types:
+    $ref: "./paths/knowledge.yaml#/fileTypes"
+
+  /knowledge/index-statuses:
+    $ref: "./paths/knowledge.yaml#/indexStatuses"
+
+  ##############################################################
+  ## Models
+  ##############################################################
+
+  /models:
+    $ref: "./paths/models.yaml#/models"
+
+  /models/{model_id}:
+    $ref: "./paths/models.yaml#/model"
+
+  /models/{model_id}/test:
+    $ref: "./paths/models.yaml#/test"
+
+  /models/{model_id}/set-default:
+    $ref: "./paths/models.yaml#/setDefault"
+
+  /models/providers:
+    $ref: "./paths/models.yaml#/providers"
+
+  /models/statuses:
+    $ref: "./paths/models.yaml#/statuses"
+
+  ##############################################################
+  ## Notifications
+  ##############################################################
+
+  /notifications:
+    $ref: "./paths/notifications.yaml#/notifications"
+
+  /notifications/{notification_id}:
+    $ref: "./paths/notifications.yaml#/notification"
+
+  /notifications/{notification_id}/test:
+    $ref: "./paths/notifications.yaml#/test"
+
+  /notifications/types:
+    $ref: "./paths/notifications.yaml#/types"
+
+  /notifications/statuses:
+    $ref: "./paths/notifications.yaml#/statuses"
+
+  ##############################################################
+  ## System
+  ##############################################################
+
+  /system/info:
+    $ref: "./paths/system.yaml#/info"
+
+  /system/version:
+    $ref: "./paths/system.yaml#/version"
+
+  /system/health:
+    $ref: "./paths/system.yaml#/health"
+
+components:
+
+  securitySchemes:
+
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+
+    PageRequest:
+      $ref: "./schemas/common.yaml#/PageRequest"
+
+    PageResponse:
+      $ref: "./schemas/common.yaml#/PageResponse"
+
+    ErrorResponse:
+      $ref: "./schemas/common.yaml#/ErrorResponse"
+
+    Conversation:
+      $ref: "./schemas/conversation.yaml#/Conversation"
+
+    Message:
+      $ref: "./schemas/message.yaml#/Message"
+
+    Run:
+      $ref: "./schemas/run.yaml#/Run"
+
+    Observation:
+      $ref: "./schemas/run.yaml#/Observation"
+
+    Incident:
+      $ref: "./schemas/incident.yaml#/Incident"
+
+    Inspection:
+      $ref: "./schemas/inspection.yaml#/Inspection"
+
+    Entity:
+      $ref: "./schemas/entity.yaml#/Entity"
+
+    KnowledgeFile:
+      $ref: "./schemas/knowledge.yaml#/KnowledgeFile"
+
+    Model:
+      $ref: "./schemas/model.yaml#/Model"
+
+    Notification:
+      $ref: "./schemas/notification.yaml#/Notification"

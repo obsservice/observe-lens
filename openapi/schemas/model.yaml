@@ -1,0 +1,38 @@
+ModelStatus: { type: string, enum: [connected, disconnected, unknown] }
+Model:
+  type: object
+  required: [id, provider, model_name, status, is_default, created_at, updated_at]
+  properties:
+    id: { $ref: common.yaml#/UUID }
+    provider: { type: string }
+    model_name: { type: string }
+    endpoint: { type: string, format: uri }
+    status: { $ref: '#/ModelStatus' }
+    is_default: { type: boolean }
+    created_at: { $ref: common.yaml#/Timestamp }
+    updated_at: { $ref: common.yaml#/Timestamp }
+ModelWriteRequest:
+  type: object
+  required: [provider, model_name, endpoint, api_key]
+  properties:
+    provider: { type: string }
+    model_name: { type: string }
+    endpoint: { type: string, format: uri }
+    api_key: { type: string, writeOnly: true }
+    is_default: { type: boolean, default: false }
+ModelUpdateRequest:
+  type: object
+  minProperties: 1
+  properties:
+    model_name: { type: string }
+    endpoint: { type: string, format: uri }
+    api_key: { type: string, writeOnly: true }
+ModelTestResult:
+  type: object
+  required: [status]
+  properties:
+    status: { $ref: '#/ModelStatus' }
+    latency_ms: { type: integer, minimum: 0 }
+    message: { type: string }
+ModelPage:
+  allOf: [{ $ref: common.yaml#/PagedResult }, { type: object, properties: { items: { type: array, items: { $ref: '#/Model' } } } }]
