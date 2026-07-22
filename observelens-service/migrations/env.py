@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from observelens_service.database.base import Base
 from observelens_service.modules.conversations import models  # noqa: F401
 from observelens_service.modules.incidents import models as incident_models  # noqa: F401
+from observelens_service.modules.inspections import models as inspection_models  # noqa: F401
 
 config = context.config
 load_dotenv()
