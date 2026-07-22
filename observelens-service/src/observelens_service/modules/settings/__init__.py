@@ -1,0 +1,1 @@
+"""Model and notification settings."""
