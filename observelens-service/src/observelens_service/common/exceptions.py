@@ -16,6 +16,11 @@ class ResourceNotFoundError(DomainError):
         super().__init__("RESOURCE_NOT_FOUND", f"{resource} not found", 404)
 
 
+class DependencyUnavailableError(DomainError):
+    def __init__(self, dependency: str) -> None:
+        super().__init__("DEPENDENCY_UNAVAILABLE", f"{dependency} is unavailable", 503)
+
+
 async def domain_error_handler(request: Request, exc: Exception) -> JSONResponse:
     if not isinstance(exc, DomainError):
         raise exc
