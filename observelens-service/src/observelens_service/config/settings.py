@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     agent_base_url: HttpUrl
     catalog_base_url: HttpUrl | None = None
     catalog_timeout_seconds: float = 10.0
+    knowledge_base_url: HttpUrl | None = None
+    knowledge_base_timeout_seconds: float = 30.0
     agent_timeout_seconds: float = 30.0
     environment: str = "development"
     log_level: str = "INFO"
