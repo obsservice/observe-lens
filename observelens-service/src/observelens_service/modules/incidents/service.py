@@ -2,10 +2,11 @@ import builtins
 import secrets
 from datetime import UTC, datetime
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from observelens_service.common.context import RequestContext
-from observelens_service.common.exceptions import ResourceNotFoundError
+from observelens_service.common.exceptions import ResourceAlreadyExistsError, ResourceNotFoundError
 from observelens_service.modules.conversations.models import ConversationModel
 from observelens_service.modules.conversations.service import new_id
 from observelens_service.modules.incidents.models import IncidentIntegrationModel, IncidentModel
@@ -113,23 +114,46 @@ class IncidentService:
         return OpenConversationResponse(conversation_id=incident.conversation_id)
 
     async def list_integrations(
-        self, context: RequestContext
+        self,
+        context: RequestContext,
+        integration_type: str | None,
+        status: str | None,
+        name: str | None,
     ) -> builtins.list[IncidentIntegrationResponse]:
-        integrations = await self._repository.list_integrations(context.tenant_id)
+        integrations = await self._repository.list_integrations(
+            context.tenant_id, integration_type, status, name
+        )
         return [self._integration_response(item) for item in integrations]
 
     async def create_integration(
         self, context: RequestContext, request: IntegrationCreateRequest
     ) -> IncidentIntegrationResponse:
+        existing = await self._repository.get_integration_by_name(context.tenant_id, request.name)
+        if existing is not None:
+            raise ResourceAlreadyExistsError("Incident integration", "name", request.name)
+
+        now = datetime.now(UTC)
+        token = secrets.token_urlsafe(32)
         integration = IncidentIntegrationModel(
             id=new_id(),
             tenant_id=context.tenant_id,
             name=request.name,
+            type=request.type,
             status=request.status,
-            token_hint=f"****{secrets.token_hex(4)}",
+            token=token,
+            token_hint=f"****{token[-8:]}",
+            create_time=now,
+            update_time=now,
         )
         self._repository.add(integration)
-        await self._session.flush()
+        try:
+            await self._session.flush()
+        except IntegrityError as exc:
+            if self._is_duplicate_integration_name(exc):
+                raise ResourceAlreadyExistsError(
+                    "Incident integration", "name", request.name
+                ) from exc
+            raise
         return self._integration_response(integration)
 
     async def get_integration(
@@ -143,8 +167,11 @@ class IncidentService:
         integration = await self._require_integration(context, integration_id)
         if request.name is not None:
             integration.name = request.name
+        if request.type is not None:
+            integration.type = request.type
         if request.status is not None:
             integration.status = request.status
+        integration.update_time = datetime.now(UTC)
         await self._session.flush()
         return self._integration_response(integration)
 
@@ -172,4 +199,12 @@ class IncidentService:
         response = IncidentIntegrationResponse.model_validate(integration)
         return response.model_copy(
             update={"webhook_url": f"/api/v1/incidents/integrations/{integration.id}/webhook"}
+        )
+
+    @staticmethod
+    def _is_duplicate_integration_name(exc: IntegrityError) -> bool:
+        message = str(exc.orig)
+        return (
+            "uq_incident_integration_tenant_name" in message
+            or "t_incident_integrations_tenant_id_name_key" in message
         )

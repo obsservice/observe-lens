@@ -9,12 +9,15 @@ from observelens_service.common.context import RequestContext
 from observelens_service.common.dependencies import get_request_context, get_session_factory
 from observelens_service.database.session import session_scope
 from observelens_service.modules.incidents.schemas import (
+    SUPPORTED_INTEGRATION_TYPES,
     IncidentCreateRequest,
     IncidentIntegrationResponse,
     IncidentPage,
     IncidentResponse,
     IncidentUpdateRequest,
     IntegrationCreateRequest,
+    IntegrationStatus,
+    IntegrationType,
     IntegrationUpdateRequest,
     OpenConversationResponse,
 )
@@ -54,14 +57,14 @@ async def create_incident(
 
 
 @router.get("/severities")
-async def list_severities() -> list[dict[str, str]]:
+async def list_severities(context: ContextDependency) -> list[dict[str, str]]:
     return [
         {"value": value, "label": value.title()} for value in ("CRITICAL", "HIGH", "MEDIUM", "LOW")
     ]
 
 
 @router.get("/statuses")
-async def list_statuses() -> list[dict[str, str]]:
+async def list_statuses(context: ContextDependency) -> list[dict[str, str]]:
     return [
         {"value": value, "label": value.title()}
         for value in ("OPEN", "INVESTIGATING", "MITIGATED", "RESOLVED", "CLOSED", "ARCHIVED")
@@ -69,7 +72,7 @@ async def list_statuses() -> list[dict[str, str]]:
 
 
 @router.get("/sources")
-async def list_sources() -> list[dict[str, str]]:
+async def list_sources(context: ContextDependency) -> list[dict[str, str]]:
     return [
         {"value": value, "label": value.title()}
         for value in ("ALERTMANAGER", "GRAFANA", "MANUAL", "WEBHOOK")
@@ -121,9 +124,13 @@ async def open_incident_conversation(
 
 @router.get("/integrations", response_model=list[IncidentIntegrationResponse])
 async def list_integrations(
-    context: ContextDependency, service: ServiceDependency
+    context: ContextDependency,
+    service: ServiceDependency,
+    integration_type: Annotated[IntegrationType | None, Query(alias="type")] = None,
+    status: IntegrationStatus | None = None,
+    name: str | None = None,
 ) -> list[IncidentIntegrationResponse]:
-    return await service.list_integrations(context)
+    return await service.list_integrations(context, integration_type, status, name)
 
 
 @router.post("/integrations", response_model=IncidentIntegrationResponse, status_code=201)
@@ -131,6 +138,19 @@ async def create_integration(
     request: IntegrationCreateRequest, context: ContextDependency, service: ServiceDependency
 ) -> IncidentIntegrationResponse:
     return await service.create_integration(context, request)
+
+
+@router.get("/integrations/types")
+async def list_integration_types(context: ContextDependency) -> list[dict[str, str]]:
+    return [{"value": value, "label": value} for value in SUPPORTED_INTEGRATION_TYPES]
+
+
+@router.get("/integrations/statuses")
+async def list_integration_statuses(context: ContextDependency) -> list[dict[str, str]]:
+    return [
+        {"value": "ENABLED", "label": "Enabled"},
+        {"value": "DISABLED", "label": "Disabled"},
+    ]
 
 
 @router.get("/integrations/{integration_id}", response_model=IncidentIntegrationResponse)

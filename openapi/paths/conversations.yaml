@@ -1,4 +1,8 @@
 conversations:
+  parameters:
+    - $ref: "../components/parameters.yaml#/TenantId"
+    - $ref: "../components/parameters.yaml#/UserId"
+    - $ref: "../components/parameters.yaml#/RequestId"
 
   get:
     tags:
@@ -50,6 +54,10 @@ conversations:
               $ref: "../schemas/conversation.yaml#/Conversation"
 
 conversation:
+  parameters:
+    - $ref: "../components/parameters.yaml#/TenantId"
+    - $ref: "../components/parameters.yaml#/UserId"
+    - $ref: "../components/parameters.yaml#/RequestId"
 
   get:
     tags:

@@ -70,14 +70,14 @@ export function DropdownControl({
     <div className="relative">
       <button
         aria-expanded={isOpen}
-        className="inline-flex h-10 min-w-[132px] items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50"
+        className="inline-flex h-10 min-w-[168px] cursor-pointer items-center justify-between gap-4 rounded-md border border-slate-200 bg-white px-4 text-sm text-slate-700 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 focus-visible:border-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-100"
         onClick={() => setIsOpen((value) => !value)}
         type="button"
       >
-        {selected}
+        <span className="min-w-0 flex-1 truncate text-left">{selected}</span>
         <ChevronDown
           aria-hidden="true"
-          className={cn('transition', isOpen && 'rotate-180')}
+          className={cn('shrink-0 transition', isOpen && 'rotate-180')}
           size={16}
         />
       </button>

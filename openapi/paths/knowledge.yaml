@@ -1,4 +1,5 @@
 files:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get:
     tags: [Knowledge]
     summary: List knowledge files
@@ -19,6 +20,7 @@ files:
             properties: { file: { type: string, format: binary } }
     responses: { '201': { description: Uploaded and queued for indexing, content: { application/json: { schema: { $ref: ../schemas/knowledge.yaml#/KnowledgeFile } } } } }
 file:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get:
     tags: [Knowledge]
     summary: Get knowledge file metadata
@@ -32,6 +34,7 @@ file:
     parameters: [{ $ref: ../components/parameters.yaml#/FileId }]
     responses: { '204': { description: Deleted } }
 status:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get:
     tags: [Knowledge]
     summary: Get file indexing status
@@ -39,6 +42,7 @@ status:
     parameters: [{ $ref: ../components/parameters.yaml#/FileId }]
     responses: { '200': { description: Index status, content: { application/json: { schema: { $ref: ../schemas/knowledge.yaml#/KnowledgeFileStatus } } } } }
 reindex:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   post:
     tags: [Knowledge]
     summary: Reindex knowledge file
@@ -46,6 +50,8 @@ reindex:
     parameters: [{ $ref: ../components/parameters.yaml#/FileId }]
     responses: { '202': { description: Reindex queued, content: { application/json: { schema: { $ref: ../schemas/knowledge.yaml#/KnowledgeFileStatus } } } } }
 fileTypes:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get: { tags: [Knowledge], summary: List supported file types, operationId: listKnowledgeFileTypes, responses: { '200': { description: File types, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/common.yaml#/Option } } } } } } }
 indexStatuses:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get: { tags: [Knowledge], summary: List index statuses, operationId: listKnowledgeIndexStatuses, responses: { '200': { description: Index statuses, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/common.yaml#/Option } } } } } } }

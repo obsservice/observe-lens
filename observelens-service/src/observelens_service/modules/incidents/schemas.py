@@ -5,6 +5,27 @@ from pydantic import BaseModel, ConfigDict, Field
 
 Severity = Literal["CRITICAL", "HIGH", "MEDIUM", "LOW"]
 Status = Literal["OPEN", "INVESTIGATING", "MITIGATED", "RESOLVED", "CLOSED", "ARCHIVED"]
+SUPPORTED_INTEGRATION_TYPES = [
+    "Webhook",
+    "AlertManager",
+    "Grafana",
+    "Prometheus",
+    "Datadog",
+    "Zabbix",
+    "Nagios",
+    "OpsGenie",
+]
+IntegrationType = Literal[
+    "Webhook",
+    "AlertManager",
+    "Grafana",
+    "Prometheus",
+    "Datadog",
+    "Zabbix",
+    "Nagios",
+    "OpsGenie",
+]
+IntegrationStatus = Literal["ENABLED", "DISABLED"]
 
 
 class IncidentCreateRequest(BaseModel):
@@ -48,12 +69,14 @@ class IncidentPage(BaseModel):
 
 class IntegrationCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=128)
-    status: Literal["ENABLED", "DISABLED"] = "ENABLED"
+    type: IntegrationType = "Webhook"
+    status: IntegrationStatus = "ENABLED"
 
 
 class IntegrationUpdateRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=128)
-    status: Literal["ENABLED", "DISABLED"] | None = None
+    type: IntegrationType | None = None
+    status: IntegrationStatus | None = None
 
 
 class IncidentIntegrationResponse(BaseModel):
@@ -61,8 +84,10 @@ class IncidentIntegrationResponse(BaseModel):
 
     id: int
     name: str
+    type: str
     status: str
     webhook_url: str = ""
+    token: str
     token_hint: str
     created_at: datetime = Field(validation_alias="create_time")
     updated_at: datetime = Field(validation_alias="update_time")

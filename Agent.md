@@ -49,6 +49,7 @@
 * 服务端数据统一使用 TanStack Query 管理。
 * 本地轻量状态使用 Zustand。
 * 表单统一使用 React Hook Form + Zod。
+* 表单必填数据项必须在字段 Label 后展示红色 `*` 提示，并与 Zod 必填校验保持一致。
 * UI 组件优先复用 shadcn/ui。
 * 禁止在页面组件中直接编写底层 HTTP 请求。
 * 流式输出默认使用 SSE。

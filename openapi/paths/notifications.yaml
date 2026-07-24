@@ -1,4 +1,5 @@
 notifications:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get:
     tags: [Notification]
     summary: List notifications
@@ -12,6 +13,7 @@ notifications:
     requestBody: { required: true, content: { application/json: { schema: { $ref: ../schemas/notification.yaml#/NotificationWriteRequest } } } }
     responses: { '201': { description: Created, content: { application/json: { schema: { $ref: ../schemas/notification.yaml#/Notification } } } } }
 notification:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get:
     tags: [Notification]
     summary: Get notification configuration
@@ -32,6 +34,7 @@ notification:
     parameters: [{ $ref: ../components/parameters.yaml#/NotificationId }]
     responses: { '204': { description: Deleted } }
 test:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   post:
     tags: [Notification]
     summary: Send test notification
@@ -39,6 +42,8 @@ test:
     parameters: [{ $ref: ../components/parameters.yaml#/NotificationId }]
     responses: { '200': { description: Test result, content: { application/json: { schema: { $ref: ../schemas/notification.yaml#/NotificationTestResult } } } } }
 types:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get: { tags: [Notification], summary: List notification types, operationId: listNotificationTypes, responses: { '200': { description: Types, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/common.yaml#/Option } } } } } } }
 statuses:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get: { tags: [Notification], summary: List notification statuses, operationId: listNotificationStatuses, responses: { '200': { description: Statuses, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/common.yaml#/Option } } } } } } }

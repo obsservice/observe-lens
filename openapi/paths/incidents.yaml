@@ -1,4 +1,5 @@
 incidents:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get:
     tags: [Incident]
     summary: List incidents
@@ -12,6 +13,7 @@ incidents:
     requestBody: { required: true, content: { application/json: { schema: { $ref: ../schemas/incident.yaml#/IncidentCreateRequest } } } }
     responses: { '201': { description: Created, content: { application/json: { schema: { $ref: ../schemas/incident.yaml#/Incident } } } }, '409': { $ref: ../components/responses.yaml#/Conflict } }
 incident:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get:
     tags: [Incident]
     summary: Get incident
@@ -32,6 +34,7 @@ incident:
     parameters: [{ $ref: ../components/parameters.yaml#/IncidentId }]
     responses: { '204': { description: Deleted }, '404': { $ref: ../components/responses.yaml#/NotFound } }
 archive:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   post:
     tags: [Incident]
     summary: Archive incident
@@ -39,6 +42,7 @@ archive:
     parameters: [{ $ref: ../components/parameters.yaml#/IncidentId }]
     responses: { '200': { description: Archived, content: { application/json: { schema: { $ref: ../schemas/incident.yaml#/Incident } } } }, '404': { $ref: ../components/responses.yaml#/NotFound } }
 openConversation:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   post:
     tags: [Incident]
     summary: Open an AI investigation for incident
@@ -46,18 +50,35 @@ openConversation:
     parameters: [{ $ref: ../components/parameters.yaml#/IncidentId }]
     responses: { '201': { description: Conversation created, content: { application/json: { schema: { $ref: ../schemas/entity.yaml#/OpenConversationResponse } } } }, '404': { $ref: ../components/responses.yaml#/NotFound } }
 integrations:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get:
     tags: [Incident]
     summary: List incident integrations
     operationId: listIncidentIntegrations
+    parameters: [{ name: type, in: query, schema: { type: string, enum: [Webhook, AlertManager, Grafana, Prometheus, Datadog, Zabbix, Nagios, OpsGenie] }, description: Exact integration type filter }, { name: status, in: query, schema: { type: string, enum: [ENABLED, DISABLED] }, description: Exact integration status filter }, { name: name, in: query, schema: { type: string }, description: Fuzzy integration name filter }]
     responses: { '200': { description: Integrations, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/incident.yaml#/IncidentIntegration } } } } } }
   post:
     tags: [Incident]
     summary: Create incident webhook integration
     operationId: createIncidentIntegration
     requestBody: { required: true, content: { application/json: { schema: { $ref: ../schemas/incident.yaml#/IntegrationCreateRequest } } } }
-    responses: { '201': { description: Created, content: { application/json: { schema: { $ref: ../schemas/incident.yaml#/IncidentIntegration } } } } }
+    responses: { '201': { description: Created, content: { application/json: { schema: { $ref: ../schemas/incident.yaml#/IncidentIntegration } } } }, '409': { $ref: ../components/responses.yaml#/ResourceAlreadyExists } }
+integrationTypes:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
+  get:
+    tags: [Incident]
+    summary: List incident integration types
+    operationId: listIncidentIntegrationTypes
+    responses: { '200': { description: Integration types, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/common.yaml#/Option } } } } } }
+integrationStatuses:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
+  get:
+    tags: [Incident]
+    summary: List incident integration statuses
+    operationId: listIncidentIntegrationStatuses
+    responses: { '200': { description: Integration statuses, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/common.yaml#/Option } } } } } }
 integration:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get:
     tags: [Incident]
     summary: Get incident integration
@@ -78,8 +99,11 @@ integration:
     parameters: [{ $ref: ../components/parameters.yaml#/IntegrationId }]
     responses: { '204': { description: Deleted } }
 severities:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get: { tags: [Incident], summary: List incident severities, operationId: listIncidentSeverities, responses: { '200': { description: Severities, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/common.yaml#/Option } } } } } } }
 statuses:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get: { tags: [Incident], summary: List incident statuses, operationId: listIncidentStatuses, responses: { '200': { description: Statuses, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/common.yaml#/Option } } } } } } }
 sources:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get: { tags: [Incident], summary: List incident sources, operationId: listIncidentSources, responses: { '200': { description: Sources, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/common.yaml#/Option } } } } } } }

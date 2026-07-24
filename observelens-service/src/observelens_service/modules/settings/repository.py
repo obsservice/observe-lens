@@ -9,13 +9,16 @@ class SettingsRepository:
         self._session = session
 
     async def model(self, tenant_id: int, item_id: int) -> ModelConfigModel | None:
-        return await self._session.scalar(
+        item = await self._session.scalar(
             select(ModelConfigModel).where(
                 ModelConfigModel.tenant_id == tenant_id,
                 ModelConfigModel.id == item_id,
                 ModelConfigModel.delete_time.is_(None),
             )
         )
+        if item is None or isinstance(item, ModelConfigModel):
+            return item
+        raise TypeError(f"Unexpected model config type: {type(item)!r}")
 
     async def models(
         self, tenant_id: int, page: int, size: int
@@ -32,13 +35,16 @@ class SettingsRepository:
         return [*items], total or 0
 
     async def notification(self, tenant_id: int, item_id: int) -> NotificationModel | None:
-        return await self._session.scalar(
+        item = await self._session.scalar(
             select(NotificationModel).where(
                 NotificationModel.tenant_id == tenant_id,
                 NotificationModel.id == item_id,
                 NotificationModel.delete_time.is_(None),
             )
         )
+        if item is None or isinstance(item, NotificationModel):
+            return item
+        raise TypeError(f"Unexpected notification type: {type(item)!r}")
 
     async def notifications(
         self, tenant_id: int, page: int, size: int

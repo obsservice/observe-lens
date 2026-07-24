@@ -1,4 +1,5 @@
 inspections:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get:
     tags: [Inspection]
     summary: List inspections
@@ -12,6 +13,7 @@ inspections:
     requestBody: { required: true, content: { application/json: { schema: { $ref: ../schemas/inspection.yaml#/InspectionCreateRequest } } } }
     responses: { '201': { description: Created, content: { application/json: { schema: { $ref: ../schemas/inspection.yaml#/Inspection } } } } }
 inspection:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get:
     tags: [Inspection]
     summary: Get inspection
@@ -32,6 +34,7 @@ inspection:
     parameters: [{ $ref: ../components/parameters.yaml#/InspectionId }]
     responses: { '204': { description: Deleted } }
 execute:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   post:
     tags: [Inspection]
     summary: Execute inspection now
@@ -39,6 +42,7 @@ execute:
     parameters: [{ $ref: ../components/parameters.yaml#/InspectionId }]
     responses: { '202': { description: Execution started, content: { application/json: { schema: { $ref: ../schemas/inspection.yaml#/InspectionExecution } } } }, '409': { $ref: ../components/responses.yaml#/Conflict } }
 enable:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   post:
     tags: [Inspection]
     summary: Enable scheduled inspection
@@ -46,6 +50,7 @@ enable:
     parameters: [{ $ref: ../components/parameters.yaml#/InspectionId }]
     responses: { '200': { description: Enabled, content: { application/json: { schema: { $ref: ../schemas/inspection.yaml#/Inspection } } } } }
 disable:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   post:
     tags: [Inspection]
     summary: Disable scheduled inspection
@@ -53,6 +58,8 @@ disable:
     parameters: [{ $ref: ../components/parameters.yaml#/InspectionId }]
     responses: { '200': { description: Disabled, content: { application/json: { schema: { $ref: ../schemas/inspection.yaml#/Inspection } } } } }
 statuses:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get: { tags: [Inspection], summary: List inspection statuses, operationId: listInspectionStatuses, responses: { '200': { description: Statuses, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/common.yaml#/Option } } } } } } }
 schedules:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get: { tags: [Inspection], summary: List available schedules, operationId: listInspectionSchedules, responses: { '200': { description: Schedules, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/common.yaml#/Option } } } } } } }

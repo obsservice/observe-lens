@@ -1,4 +1,5 @@
 conversationMessages:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get:
     tags: [Message]
     summary: List conversation messages
@@ -18,6 +19,7 @@ conversationMessages:
         content: { text/event-stream: { schema: { $ref: ../schemas/run.yaml#/AESPEvent } } }
       '404': { $ref: ../components/responses.yaml#/NotFound }
 message:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get:
     tags: [Message]
     summary: Get message

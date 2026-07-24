@@ -34,7 +34,14 @@ interface RequestOptions extends Omit<RequestInit, 'body'> {
 }
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000/api/v1';
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3081/api/v1';
+
+const API_TENANT_ID = process.env.NEXT_PUBLIC_API_TENANT_ID ?? '1';
+const API_USER_ID = process.env.NEXT_PUBLIC_API_USER_ID ?? '1';
+
+export function getApiBaseUrl(): string {
+  return API_BASE_URL;
+}
 
 export async function apiRequest<TResponse>(
   path: string,
@@ -45,6 +52,8 @@ export async function apiRequest<TResponse>(
     body: body === undefined ? undefined : JSON.stringify(body),
     headers: {
       Accept: 'application/json',
+      'X-Tenant-Id': API_TENANT_ID,
+      'X-User-Id': API_USER_ID,
       ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       ...headers,
     },
@@ -61,6 +70,10 @@ export async function apiRequest<TResponse>(
       requestId:
         errorResponse.request_id ?? response.headers.get('x-request-id'),
     });
+  }
+
+  if (response.status === 204) {
+    return undefined as TResponse;
   }
 
   return (await response.json()) as TResponse;

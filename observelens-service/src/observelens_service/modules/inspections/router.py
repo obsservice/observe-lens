@@ -49,7 +49,7 @@ async def create_inspection(
 
 
 @router.get("/statuses")
-async def list_statuses() -> list[dict[str, str]]:
+async def list_statuses(context: ContextDependency) -> list[dict[str, str]]:
     return [
         {"value": value, "label": value.title()}
         for value in ("ENABLED", "DISABLED", "RUNNING", "SUCCESS", "FAILED")
@@ -57,7 +57,7 @@ async def list_statuses() -> list[dict[str, str]]:
 
 
 @router.get("/schedules")
-async def list_schedules() -> list[dict[str, str]]:
+async def list_schedules(context: ContextDependency) -> list[dict[str, str]]:
     return [
         {"value": "Every Hour", "label": "Every Hour"},
         {"value": "Every Day", "label": "Every Day"},

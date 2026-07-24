@@ -12,10 +12,10 @@ init-env:
 bootstrap: install init-env migrate
 
 run: init-env
-	$(UV) run uvicorn observelens_service.main:app --port 3081
+	$(UV) run uvicorn observelens_service.main:app --reload --reload-dir src --port 3081
 
 dev: init-env
-	$(UV) run uvicorn observelens_service.main:app --reload --port 3081
+	$(UV) run uvicorn observelens_service.main:app --reload --reload-dir src --port 3081
 
 test:
 	$(UV) run pytest

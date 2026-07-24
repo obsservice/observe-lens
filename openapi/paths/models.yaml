@@ -1,4 +1,5 @@
 models:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get:
     tags: [Model]
     summary: List model configurations
@@ -12,6 +13,7 @@ models:
     requestBody: { required: true, content: { application/json: { schema: { $ref: ../schemas/model.yaml#/ModelWriteRequest } } } }
     responses: { '201': { description: Created, content: { application/json: { schema: { $ref: ../schemas/model.yaml#/Model } } } } }
 model:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get:
     tags: [Model]
     summary: Get model configuration
@@ -32,6 +34,7 @@ model:
     parameters: [{ $ref: ../components/parameters.yaml#/ModelId }]
     responses: { '204': { description: Deleted } }
 test:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   post:
     tags: [Model]
     summary: Test model connectivity
@@ -39,6 +42,7 @@ test:
     parameters: [{ $ref: ../components/parameters.yaml#/ModelId }]
     responses: { '200': { description: Test result, content: { application/json: { schema: { $ref: ../schemas/model.yaml#/ModelTestResult } } } } }
 setDefault:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   post:
     tags: [Model]
     summary: Set default model
@@ -46,6 +50,8 @@ setDefault:
     parameters: [{ $ref: ../components/parameters.yaml#/ModelId }]
     responses: { '200': { description: Default model updated, content: { application/json: { schema: { $ref: ../schemas/model.yaml#/Model } } } } }
 providers:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get: { tags: [Model], summary: List model providers, operationId: listModelProviders, responses: { '200': { description: Providers, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/common.yaml#/Option } } } } } } }
 statuses:
+  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get: { tags: [Model], summary: List model statuses, operationId: listModelStatuses, responses: { '200': { description: Statuses, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/common.yaml#/Option } } } } } } }

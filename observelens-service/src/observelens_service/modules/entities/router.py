@@ -40,12 +40,15 @@ ContextDependency = Annotated[RequestContext, Depends(get_request_context)]
 
 
 @router.get("/types")
-async def list_entity_types(service: ServiceDependency) -> list[dict[str, str]]:
+async def list_entity_types(
+    context: ContextDependency, service: ServiceDependency
+) -> list[dict[str, str]]:
     return await service.types()
 
 
 @router.get("/search", response_model=EntityPage)
 async def search_entities(
+    context: ContextDependency,
     service: ServiceDependency,
     query: str | None = None,
     entity_type: str | None = Query(None, alias="type"),
@@ -56,20 +59,25 @@ async def search_entities(
 
 
 @router.get("/{entity_id}", response_model=EntityResponse)
-async def get_entity(entity_id: str, service: ServiceDependency) -> EntityResponse:
+async def get_entity(
+    entity_id: str, context: ContextDependency, service: ServiceDependency
+) -> EntityResponse:
     return await service.get(entity_id)
 
 
 @router.get("/{entity_id}/topology", response_model=TopologyResponse)
 async def get_entity_topology(
-    entity_id: str, service: ServiceDependency, depth: int = Query(2, ge=1, le=5)
+    entity_id: str,
+    context: ContextDependency,
+    service: ServiceDependency,
+    depth: int = Query(2, ge=1, le=5),
 ) -> TopologyResponse:
     return await service.topology(entity_id, depth)
 
 
 @router.get("/{entity_id}/relations", response_model=list[EntityRelationResponse])
 async def list_entity_relations(
-    entity_id: str, service: ServiceDependency
+    entity_id: str, context: ContextDependency, service: ServiceDependency
 ) -> list[EntityRelationResponse]:
     return await service.relations(entity_id)
 

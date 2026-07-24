@@ -10,3 +10,17 @@ NotFound:
 Conflict:
   description: Request conflicts with current resource state.
   content: { application/json: { schema: { $ref: ../schemas/common.yaml#/ErrorResponse } } }
+ResourceAlreadyExists:
+  description: Resource already exists.
+  content:
+    application/json:
+      schema:
+        $ref: ../schemas/common.yaml#/ErrorResponse
+      examples:
+        duplicateName:
+          summary: Duplicate resource name
+          value:
+            code: RESOURCE_ALREADY_EXISTS
+            message: Incident integration with name "Grafana prod" already exists
+            request_id: req-1
+            details: {}

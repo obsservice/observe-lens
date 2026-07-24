@@ -1,3 +1,5 @@
+'use client';
+
 import {
   AppShell,
   FilterInput,
@@ -13,7 +15,21 @@ import {
   StatusBadge,
   type StatusTone,
 } from '@/components/observe-lens/status-badge';
+import {
+  createIncidentIntegration,
+  deleteIncidentIntegration,
+  incidentIntegrationQueryKeys,
+  listIncidentIntegrationStatuses,
+  listIncidentIntegrationTypes,
+  listIncidentIntegrations,
+  type IncidentIntegration,
+  type IncidentOption,
+  updateIncidentIntegration,
+} from '@/lib/api/incidents';
+import { ApiError, getApiBaseUrl } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Activity,
   BellRing,
@@ -44,10 +60,14 @@ import {
   Settings,
   ShieldCheck,
   Square,
+  Trash2,
   Zap,
 } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 
 function LinkButton({
   ariaLabel,
@@ -378,8 +398,11 @@ function IncidentPagination(): ReactNode {
 
 interface IntegrationRow {
   createdAt: string;
+  id: number;
   name: string;
   status: 'Enabled' | 'Disabled';
+  token: string;
+  tokenHint: string;
   type:
     | 'AlertManager'
     | 'Datadog'
@@ -391,65 +414,6 @@ interface IntegrationRow {
     | 'Zabbix';
   url: string;
 }
-
-const integrations: IntegrationRow[] = [
-  {
-    createdAt: '2024-05-20 10:30',
-    name: 'AlertManager (Production)',
-    status: 'Enabled',
-    type: 'AlertManager',
-    url: 'https://observelens.company.com/webhook/alertmanager/abc123...',
-  },
-  {
-    createdAt: '2024-05-18 14:22',
-    name: 'Grafana Alerting',
-    status: 'Enabled',
-    type: 'Grafana',
-    url: 'https://observelens.company.com/webhook/grafana/def456...',
-  },
-  {
-    createdAt: '2024-05-15 09:11',
-    name: 'Prometheus Alertmanager',
-    status: 'Enabled',
-    type: 'Prometheus',
-    url: 'https://observelens.company.com/webhook/prometheus/ghi789...',
-  },
-  {
-    createdAt: '2024-05-10 16:45',
-    name: 'Datadog',
-    status: 'Enabled',
-    type: 'Datadog',
-    url: 'https://observelens.company.com/webhook/datadog/jkl012...',
-  },
-  {
-    createdAt: '2024-05-08 11:20',
-    name: 'Zabbix',
-    status: 'Disabled',
-    type: 'Zabbix',
-    url: 'https://observelens.company.com/webhook/zabbix/mno345...',
-  },
-  {
-    createdAt: '2024-05-05 13:33',
-    name: 'Nagios',
-    status: 'Disabled',
-    type: 'Nagios',
-    url: 'https://observelens.company.com/webhook/nagios/pqr678...',
-  },
-  {
-    createdAt: '2024-05-01 10:05',
-    name: 'Webhook (Custom)',
-    status: 'Enabled',
-    type: 'Webhook',
-    url: 'https://alerts.company.com/observelens/webhook/stu901...',
-  },
-  {
-    createdAt: '2024-04-28 15:12',
-    name: 'OpsGenie',
-    status: 'Disabled',
-    type: 'OpsGenie',
-    url: 'https://observelens.company.com/webhook/opsgenie/vwx234...',
-  },
-];
 
 const integrationLogoClassNames: Record<IntegrationRow['type'], string> = {
   AlertManager: 'rounded-full bg-orange-500 text-white',
@@ -518,139 +482,346 @@ function IntegrationTypeBadge({
   );
 }
 
-function IntegrationStatusBadge({
+function IntegrationStatusSwitch({
+  disabled,
+  onToggle,
   status,
 }: {
+  disabled: boolean;
+  onToggle: () => void;
   status: IntegrationRow['status'];
 }): ReactNode {
   const isEnabled = status === 'Enabled';
 
   return (
-    <span
+    <button
+      aria-pressed={isEnabled}
       className={cn(
-        'inline-flex h-6 items-center gap-1.5 rounded border px-2 text-xs font-medium',
+        'inline-flex h-7 w-[82px] items-center rounded-full border p-0.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60',
         isEnabled
           ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-          : 'border-slate-200 bg-slate-50 text-slate-600',
+          : 'border-slate-200 bg-slate-100 text-slate-500',
       )}
+      disabled={disabled}
+      onClick={onToggle}
+      type="button"
     >
       <span
         className={cn(
-          'size-1.5 rounded-full',
-          isEnabled ? 'bg-emerald-500' : 'bg-slate-400',
+          'grid h-5 w-10 place-items-center rounded-full text-[10px] shadow-sm transition',
+          isEnabled
+            ? 'translate-x-[34px] bg-emerald-600 text-white'
+            : 'translate-x-0 bg-white text-slate-500',
         )}
-      />
-      {status}
-    </span>
-  );
-}
-
-const integrationColumns: DataColumn<IntegrationRow>[] = [
-  {
-    className: 'w-[21%]',
-    header: 'Name',
-    render: (row) => (
-      <span className="inline-flex items-center gap-3">
-        <IntegrationLogo type={row.type} />
-        <span className="font-semibold text-slate-950">{row.name}</span>
-      </span>
-    ),
-  },
-  {
-    className: 'w-[11%]',
-    header: 'Type',
-    render: (row) => <IntegrationTypeBadge type={row.type} />,
-  },
-  {
-    className: 'w-[32%]',
-    header: 'Webhook URL',
-    render: (row) => (
-      <span className="flex min-w-0 items-center gap-2">
-        <span className="block truncate text-sm text-slate-700">{row.url}</span>
-        <ActionButton
-          aria-label={`Copy ${row.name} webhook URL`}
-          className="size-7 shrink-0 border-0 bg-transparent p-0 text-slate-500 shadow-none hover:bg-slate-100 hover:text-blue-600"
-          message={`${row.name} webhook URL copied`}
-          size="sm"
-          variant="ghost"
-        >
-          <Copy aria-hidden="true" size={14} />
-        </ActionButton>
-      </span>
-    ),
-  },
-  {
-    className: 'w-[11%]',
-    header: 'Status',
-    render: (row) => <IntegrationStatusBadge status={row.status} />,
-  },
-  {
-    className: 'w-[14%]',
-    header: 'Created At',
-    render: (row) => row.createdAt,
-  },
-  {
-    className: 'w-[11%]',
-    header: 'Actions',
-    render: (row) => (
-      <div className="flex items-center gap-2">
-        <ActionButton
-          aria-label={`Edit ${row.name}`}
-          className="size-8 p-0 text-blue-600 hover:text-blue-700"
-          message={`${row.name} editor opened`}
-          size="sm"
-          variant="ghost"
-        >
-          ✎
-        </ActionButton>
-        <ActionButton
-          aria-label={`Test ${row.name} webhook`}
-          className="size-8 p-0 text-blue-600 hover:text-blue-700"
-          message={`${row.name} webhook test started`}
-          size="sm"
-          variant="ghost"
-        >
-          <Send aria-hidden="true" size={14} />
-        </ActionButton>
-        <ActionButton
-          aria-label={`More actions for ${row.name}`}
-          className="size-8 p-0 text-blue-600 hover:text-blue-700"
-          message={`${row.name} actions opened`}
-          size="sm"
-          variant="ghost"
-        >
-          <MoreVertical aria-hidden="true" size={15} />
-        </ActionButton>
-      </div>
-    ),
-  },
-];
-
-function LabeledFilterSelect({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}): ReactNode {
-  return (
-    <button
-      className="inline-flex h-10 min-w-[206px] items-center justify-between rounded-md border border-slate-200 bg-white px-4 text-sm text-slate-800 shadow-sm transition hover:border-blue-200 hover:bg-blue-50"
-      type="button"
-    >
-      <span className="font-medium text-slate-950">{label}</span>
-      <span className="ml-6 flex items-center gap-5 text-slate-700">
-        {value}
-        <ChevronDown aria-hidden="true" size={15} />
+      >
+        {isEnabled ? 'ON' : 'OFF'}
       </span>
     </button>
   );
 }
 
-function IntegrationPagination(): ReactNode {
+function inferIntegrationType(name: string): IntegrationRow['type'] {
+  const normalizedName = name.toLowerCase();
+
+  if (normalizedName.includes('alertmanager')) {
+    return 'AlertManager';
+  }
+  if (normalizedName.includes('datadog')) {
+    return 'Datadog';
+  }
+  if (normalizedName.includes('grafana')) {
+    return 'Grafana';
+  }
+  if (normalizedName.includes('nagios')) {
+    return 'Nagios';
+  }
+  if (normalizedName.includes('opsgenie')) {
+    return 'OpsGenie';
+  }
+  if (normalizedName.includes('prometheus')) {
+    return 'Prometheus';
+  }
+  if (normalizedName.includes('zabbix')) {
+    return 'Zabbix';
+  }
+
+  return 'Webhook';
+}
+
+function normalizeIntegrationStatus(status: string): IntegrationRow['status'] {
+  return status.toUpperCase() === 'ENABLED' ? 'Enabled' : 'Disabled';
+}
+
+function normalizeIntegrationType(
+  type?: string,
+): IntegrationRow['type'] | null {
+  const knownTypes: IntegrationRow['type'][] = [
+    'Webhook',
+    'AlertManager',
+    'Grafana',
+    'Prometheus',
+    'Datadog',
+    'Zabbix',
+    'Nagios',
+    'OpsGenie',
+  ];
+
+  const matchedType = knownTypes.find((knownType) => knownType === type);
+
+  return matchedType ?? null;
+}
+
+function formatIntegrationDateTime(value: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date
+    .toLocaleString('zh-CN', {
+      day: '2-digit',
+      hour: '2-digit',
+      hour12: false,
+      minute: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    })
+    .replaceAll('/', '-');
+}
+
+function resolveWebhookUrl(webhookUrl: string): string {
+  if (webhookUrl.startsWith('http://') || webhookUrl.startsWith('https://')) {
+    return webhookUrl;
+  }
+
+  const apiBaseUrl = getApiBaseUrl();
+  const apiOrigin = new URL(apiBaseUrl).origin;
+
+  return new URL(webhookUrl, apiOrigin).toString();
+}
+
+function toIntegrationRow(integration: IncidentIntegration): IntegrationRow {
+  return {
+    createdAt: formatIntegrationDateTime(integration.created_at),
+    id: integration.id,
+    name: integration.name,
+    status: normalizeIntegrationStatus(integration.status),
+    token: integration.token || integration.token_hint,
+    tokenHint: integration.token_hint,
+    type:
+      normalizeIntegrationType(integration.type) ??
+      inferIntegrationType(integration.name),
+    url: resolveWebhookUrl(integration.webhook_url),
+  };
+}
+
+function formatIntegrationCreateError(error: unknown): string | undefined {
+  if (error instanceof ApiError) {
+    if (error.status === 409 || error.code === 'RESOURCE_CONFLICT') {
+      return (
+        error.message ||
+        'Integration name already exists. Please use another name.'
+      );
+    }
+
+    return error.message;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return undefined;
+}
+
+async function copyTextToClipboard(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textArea = document.createElement('textarea');
+  textArea.value = text;
+  textArea.style.position = 'fixed';
+  textArea.style.left = '-9999px';
+  textArea.style.top = '-9999px';
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+  document.execCommand('copy');
+  document.body.removeChild(textArea);
+}
+
+function getIntegrationColumns({
+  deletingIntegrationId,
+  onCopyWebhookUrl,
+  onDelete,
+  onToggleStatus,
+  onViewToken,
+  updatingStatusIntegrationId,
+}: {
+  deletingIntegrationId: number | null;
+  onCopyWebhookUrl: (row: IntegrationRow) => void;
+  onDelete: (row: IntegrationRow) => void;
+  onToggleStatus: (row: IntegrationRow) => void;
+  onViewToken: (row: IntegrationRow) => void;
+  updatingStatusIntegrationId: number | null;
+}): DataColumn<IntegrationRow>[] {
+  return [
+    {
+      className: 'w-[21%]',
+      header: 'Name',
+      render: (row) => (
+        <span className="inline-flex items-center gap-3">
+          <IntegrationLogo type={row.type} />
+          <span className="font-semibold text-slate-950">{row.name}</span>
+        </span>
+      ),
+    },
+    {
+      className: 'w-[11%]',
+      header: 'Type',
+      render: (row) => <IntegrationTypeBadge type={row.type} />,
+    },
+    {
+      className: 'w-[32%]',
+      header: 'Webhook URL',
+      render: (row) => (
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="block truncate text-sm text-slate-700">
+            {row.url}
+          </span>
+          <button
+            aria-label={`Copy ${row.name} webhook URL`}
+            className="grid size-7 shrink-0 place-items-center rounded-md border-0 bg-transparent p-0 text-slate-500 shadow-none transition hover:bg-slate-100 hover:text-blue-600"
+            onClick={() => onCopyWebhookUrl(row)}
+            type="button"
+          >
+            <Copy aria-hidden="true" size={14} />
+          </button>
+        </span>
+      ),
+    },
+    {
+      className: 'w-[11%]',
+      header: 'Status',
+      render: (row) => (
+        <IntegrationStatusSwitch
+          disabled={updatingStatusIntegrationId === row.id}
+          onToggle={() => onToggleStatus(row)}
+          status={row.status}
+        />
+      ),
+    },
+    {
+      className: 'w-[14%]',
+      header: 'Created At',
+      render: (row) => row.createdAt,
+    },
+    {
+      className: 'w-[11%]',
+      header: 'Actions',
+      render: (row) => (
+        <div className="flex items-center gap-2">
+          <button
+            aria-label={`View ${row.name} token`}
+            className="grid size-8 place-items-center rounded-md border border-blue-100 bg-blue-50 text-blue-600 shadow-sm transition hover:bg-blue-100 hover:text-blue-700"
+            onClick={() => onViewToken(row)}
+            type="button"
+          >
+            <Eye aria-hidden="true" size={15} />
+          </button>
+          <button
+            aria-label={`Delete ${row.name}`}
+            className="grid size-8 place-items-center rounded-md border border-red-100 bg-red-50 text-red-600 shadow-sm transition hover:bg-red-100 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={deletingIntegrationId === row.id}
+            onClick={() => onDelete(row)}
+            type="button"
+          >
+            <Trash2 aria-hidden="true" size={15} />
+          </button>
+        </div>
+      ),
+    },
+  ];
+}
+
+function LabeledFilterSelect({
+  label,
+  onChange,
+  options = [],
+  selectedValue = '',
+  value,
+}: {
+  label: string;
+  onChange?: (value: string) => void;
+  options?: IncidentOption[];
+  selectedValue?: string;
+  value: string;
+}): ReactNode {
+  const selectedOption = options.find(
+    (option) => option.value === selectedValue,
+  );
+  const displayValue = selectedOption?.label ?? value;
+
+  return (
+    <label className="relative inline-flex h-10 min-w-[206px] cursor-pointer items-center rounded-md border border-slate-200 bg-white px-4 text-sm text-slate-800 shadow-sm transition focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 hover:border-blue-200 hover:bg-blue-50">
+      <span className="max-w-[76px] shrink-0 truncate font-medium text-slate-950">
+        {label}
+      </span>
+      <span className="min-w-0 flex-1 truncate pl-4 pr-6 text-right text-sm text-slate-700">
+        {displayValue}
+      </span>
+      <select
+        aria-label={label}
+        className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0 outline-none"
+        onChange={(event) => onChange?.(event.target.value)}
+        value={selectedValue}
+      >
+        <option value="">{value}</option>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown
+        aria-hidden="true"
+        className="pointer-events-none absolute right-4 text-slate-500"
+        size={15}
+      />
+    </label>
+  );
+}
+
+function IntegrationTableState({
+  children,
+  tone = 'default',
+}: {
+  children: ReactNode;
+  tone?: 'default' | 'danger';
+}): ReactNode {
+  return (
+    <div
+      className={cn(
+        'flex min-h-[260px] items-center justify-center px-6 text-sm',
+        tone === 'danger' ? 'text-red-600' : 'text-slate-500',
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+function IntegrationPagination({ count }: { count: number }): ReactNode {
+  const firstItem = count > 0 ? 1 : 0;
+
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-5 py-4 text-sm text-slate-600">
-      <span>Showing 1 to 8 of 8 integrations</span>
+      <span>
+        Showing {firstItem} to {count} of {count} integrations
+      </span>
       <div className="flex items-center gap-3">
         <ActionButton
           className="h-8 gap-2 px-3 text-xs"
@@ -682,6 +853,252 @@ function IntegrationPagination(): ReactNode {
         >
           <ChevronRight aria-hidden="true" size={15} />
         </ActionButton>
+      </div>
+    </div>
+  );
+}
+
+const integrationFormSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, 'Integration name is required.')
+    .max(128, 'Integration name must be 128 characters or fewer.'),
+  type: z.string().min(1, 'Integration type is required.'),
+});
+
+type IntegrationFormValues = z.infer<typeof integrationFormSchema>;
+
+const fallbackIntegrationTypeOptions: IncidentOption[] = [
+  { label: 'Webhook', value: 'Webhook' },
+  { label: 'AlertManager', value: 'AlertManager' },
+  { label: 'Grafana', value: 'Grafana' },
+  { label: 'Prometheus', value: 'Prometheus' },
+  { label: 'Datadog', value: 'Datadog' },
+  { label: 'Zabbix', value: 'Zabbix' },
+  { label: 'Nagios', value: 'Nagios' },
+  { label: 'OpsGenie', value: 'OpsGenie' },
+];
+
+function RequiredLabel({ children }: { children: ReactNode }): ReactNode {
+  return (
+    <span className="text-sm font-medium text-slate-800">
+      {children}
+      <span aria-hidden="true" className="ml-0.5 text-red-500">
+        *
+      </span>
+      <span className="sr-only">required</span>
+    </span>
+  );
+}
+
+function IntegrationFormDialog({
+  errorMessage,
+  isSubmitting,
+  isOpen,
+  onClose,
+  onSubmit,
+  typeOptions,
+}: {
+  errorMessage?: string;
+  isSubmitting: boolean;
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (values: IntegrationFormValues) => Promise<void>;
+  typeOptions: IncidentOption[];
+}): ReactNode {
+  const {
+    formState: { errors },
+    handleSubmit,
+    register,
+    reset,
+  } = useForm<IntegrationFormValues>({
+    defaultValues: {
+      name: '',
+      type: 'Webhook',
+    },
+    resolver: zodResolver(integrationFormSchema),
+  });
+
+  const closeDialog = () => {
+    if (isSubmitting) {
+      return;
+    }
+    reset();
+    onClose();
+  };
+
+  if (!isOpen) {
+    return null;
+  }
+
+  return (
+    <div
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 px-4"
+      role="dialog"
+    >
+      <div className="w-full max-w-[520px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl shadow-slate-300/40">
+        <div className="flex items-start justify-between border-b border-slate-200 px-6 py-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">
+              New Integration
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Create a webhook integration for external alert sources.
+            </p>
+          </div>
+          <button
+            aria-label="Close integration dialog"
+            className="grid size-8 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+            onClick={closeDialog}
+            type="button"
+          >
+            ×
+          </button>
+        </div>
+
+        <form
+          className="space-y-5 px-6 py-5"
+          onSubmit={(event) => {
+            void handleSubmit(onSubmit)(event);
+          }}
+        >
+          <label className="block">
+            <RequiredLabel>Integration Name</RequiredLabel>
+            <input
+              className={cn(
+                'mt-2 h-10 w-full rounded-md border bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100',
+                errors.name ? 'border-red-300' : 'border-slate-200',
+              )}
+              placeholder="AlertManager Production"
+              {...register('name')}
+            />
+            {errors.name ? (
+              <span className="mt-1 block text-xs text-red-600">
+                {errors.name.message}
+              </span>
+            ) : null}
+          </label>
+
+          <label className="block">
+            <RequiredLabel>Type</RequiredLabel>
+            <select
+              className="mt-2 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              {...register('type')}
+            >
+              {typeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-700">
+            Webhook URL and masked token are generated by ObserveLens after the
+            integration is created.
+          </div>
+
+          {errorMessage ? (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {errorMessage}
+            </div>
+          ) : null}
+
+          <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
+            <button
+              className="inline-flex h-9 items-center justify-center rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSubmitting}
+              onClick={closeDialog}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className="inline-flex h-9 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSubmitting}
+              type="submit"
+            >
+              {isSubmitting ? 'Creating...' : 'Create Integration'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function IntegrationTokenDialog({
+  integration,
+  onClose,
+}: {
+  integration: IntegrationRow | null;
+  onClose: () => void;
+}): ReactNode {
+  if (!integration) {
+    return null;
+  }
+
+  return (
+    <div
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 px-4"
+      role="dialog"
+    >
+      <div className="w-full max-w-[460px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl shadow-slate-300/40">
+        <div className="flex items-start justify-between border-b border-slate-200 px-6 py-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">
+              Integration Token
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">{integration.name}</p>
+          </div>
+          <button
+            aria-label="Close token dialog"
+            className="grid size-8 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+            onClick={onClose}
+            type="button"
+          >
+            ×
+          </button>
+        </div>
+        <div className="space-y-4 px-6 py-5">
+          <div>
+            <p className="text-sm font-medium text-slate-800">Token</p>
+            <div className="mt-2 flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+              <code className="min-w-0 flex-1 break-all font-mono text-sm leading-6 text-slate-800">
+                {integration.token}
+              </code>
+              <button
+                aria-label={`Copy ${integration.name} token`}
+                className="inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-md bg-blue-600 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700"
+                onClick={() => {
+                  void copyTextToClipboard(integration.token).catch(() => {
+                    console.warn('Failed to copy integration token.');
+                  });
+                }}
+                type="button"
+              >
+                <Copy aria-hidden="true" size={14} />
+                Copy
+              </button>
+            </div>
+          </div>
+          <p className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-700">
+            This is the full plain token returned by ObserveLens. Copy and store
+            it securely for webhook authentication.
+          </p>
+          <div className="flex justify-end border-t border-slate-200 pt-4">
+            <button
+              className="inline-flex h-9 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+              onClick={onClose}
+              type="button"
+            >
+              Close
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -1364,7 +1781,7 @@ function EntitySearchBar(): ReactNode {
   return (
     <section className="mb-3 rounded-md border border-slate-200 bg-white p-4">
       <div className="flex items-center gap-4">
-        <LabeledFilterSelect label="Entity Type" value="All Types" />
+        <LabeledFilterSelect label="Entity Type" value="All" />
         <label className="relative block min-w-0 flex-1">
           <span className="sr-only">Search entities</span>
           <Search
@@ -2205,14 +2622,32 @@ function Toolbar({ children }: { children: ReactNode }): ReactNode {
   );
 }
 
-function SearchButton(): ReactNode {
-  return <ActionButton message="Search executed">Search</ActionButton>;
+function SearchButton({
+  message = 'Search executed',
+  onSearch,
+}: {
+  message?: string;
+  onSearch?: () => void;
+} = {}): ReactNode {
+  return (
+    <ActionButton
+      className="h-10 w-28 px-0"
+      message={message}
+      onClick={onSearch}
+    >
+      Search
+    </ActionButton>
+  );
 }
 
 export function IncidentsPage(): ReactNode {
   return (
     <AppShell activeItem="Incidents" activeSection="incidents">
-      <PageHeader parentTitle="Incidents" title="Incidents" />
+      <PageHeader
+        description="Track active and archived incidents, review severity, source, owner, and AI investigation status."
+        parentTitle="Incidents"
+        title="Incidents"
+      />
       <div className="min-h-0 flex-1 overflow-auto px-6 pb-6">
         <div className="mb-3 flex items-center gap-6 border-b border-slate-200">
           <button
@@ -2253,37 +2688,225 @@ export function IncidentsPage(): ReactNode {
 }
 
 export function IncidentIntegrationsPage(): ReactNode {
+  const queryClient = useQueryClient();
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [draftIntegrationFilters, setDraftIntegrationFilters] = useState({
+    name: '',
+    status: '',
+    type: '',
+  });
+  const [appliedIntegrationFilters, setAppliedIntegrationFilters] = useState({
+    name: '',
+    status: '',
+    type: '',
+  });
+  const [viewingTokenIntegration, setViewingTokenIntegration] =
+    useState<IntegrationRow | null>(null);
+  const {
+    data: integrationResponses = [],
+    error,
+    isError,
+    isFetching,
+    isPending,
+    refetch,
+  } = useQuery({
+    queryFn: () => listIncidentIntegrations(appliedIntegrationFilters),
+    queryKey: incidentIntegrationQueryKeys.list(appliedIntegrationFilters),
+  });
+  const { data: integrationTypeOptions = fallbackIntegrationTypeOptions } =
+    useQuery({
+      queryFn: listIncidentIntegrationTypes,
+      queryKey: incidentIntegrationQueryKeys.types(),
+    });
+  const { data: integrationStatusOptions = [] } = useQuery({
+    queryFn: listIncidentIntegrationStatuses,
+    queryKey: incidentIntegrationQueryKeys.statuses(),
+  });
+  const createIntegrationMutation = useMutation({
+    mutationFn: createIncidentIntegration,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: incidentIntegrationQueryKeys.list(),
+      });
+      setIsCreateDialogOpen(false);
+    },
+  });
+  const deleteIntegrationMutation = useMutation({
+    mutationFn: deleteIncidentIntegration,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: incidentIntegrationQueryKeys.list(),
+      });
+    },
+  });
+  const updateIntegrationMutation = useMutation({
+    mutationFn: updateIncidentIntegration,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: incidentIntegrationQueryKeys.list(),
+      });
+    },
+  });
+  const integrationRows = integrationResponses.map(toIntegrationRow);
+  const integrationColumns = getIntegrationColumns({
+    deletingIntegrationId: deleteIntegrationMutation.isPending
+      ? (deleteIntegrationMutation.variables ?? null)
+      : null,
+    onCopyWebhookUrl: (row) => {
+      void copyTextToClipboard(row.url).catch(() => {
+        console.warn('Failed to copy webhook URL.');
+      });
+    },
+    onDelete: (row) => {
+      if (
+        window.confirm(
+          `Delete integration "${row.name}"? This action cannot be undone.`,
+        )
+      ) {
+        deleteIntegrationMutation.mutate(row.id);
+      }
+    },
+    onToggleStatus: (row) => {
+      updateIntegrationMutation.mutate({
+        integrationId: row.id,
+        request: {
+          status: row.status === 'Enabled' ? 'DISABLED' : 'ENABLED',
+        },
+      });
+    },
+    onViewToken: setViewingTokenIntegration,
+    updatingStatusIntegrationId: updateIntegrationMutation.isPending
+      ? (updateIntegrationMutation.variables?.integrationId ?? null)
+      : null,
+  });
+  const createError = formatIntegrationCreateError(
+    createIntegrationMutation.error,
+  );
+
   return (
     <AppShell activeItem="Integrations" activeSection="incidents">
       <PageHeader
-        actionsClassName="pr-4"
+        actionsClassName="pr-[17px]"
         actions={
-          <ActionButton message="Add integration dialog opened">
-            <Plus aria-hidden="true" size={15} />
-            New Integrations
-          </ActionButton>
+          <button
+            className="inline-flex h-10 w-28 items-center justify-center rounded-md bg-blue-600 px-0 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2"
+            onClick={() => setIsCreateDialogOpen(true)}
+            type="button"
+          >
+            New
+          </button>
         }
         description="Configure alert sources to receive incidents in ObserveLens via webhook."
         parentTitle="Incidents"
         title="Integrations"
       />
+      <IntegrationFormDialog
+        errorMessage={createError}
+        isOpen={isCreateDialogOpen}
+        isSubmitting={createIntegrationMutation.isPending}
+        onClose={() => {
+          createIntegrationMutation.reset();
+          setIsCreateDialogOpen(false);
+        }}
+        onSubmit={async (values) => {
+          await createIntegrationMutation.mutateAsync({
+            name: values.name,
+            type: values.type,
+          });
+        }}
+        typeOptions={integrationTypeOptions}
+      />
+      <IntegrationTokenDialog
+        integration={viewingTokenIntegration}
+        onClose={() => setViewingTokenIntegration(null)}
+      />
       <div className="min-h-0 flex-1 overflow-auto px-6 pb-6">
         <Toolbar>
           <div className="flex flex-wrap gap-4">
-            <FilterInput placeholder="Search integrations..." />
-            <LabeledFilterSelect label="Type" value="All Types" />
-            <LabeledFilterSelect label="Status" value="All Status" />
+            <FilterInput
+              onChange={(name) =>
+                setDraftIntegrationFilters((filters) => ({
+                  ...filters,
+                  name,
+                }))
+              }
+              placeholder="Search integrations..."
+              value={draftIntegrationFilters.name}
+            />
+            <LabeledFilterSelect
+              label="Type"
+              onChange={(type) =>
+                setDraftIntegrationFilters((filters) => ({
+                  ...filters,
+                  type,
+                }))
+              }
+              options={integrationTypeOptions}
+              selectedValue={draftIntegrationFilters.type}
+              value="All"
+            />
+            <LabeledFilterSelect
+              label="Status"
+              onChange={(status) =>
+                setDraftIntegrationFilters((filters) => ({
+                  ...filters,
+                  status,
+                }))
+              }
+              options={integrationStatusOptions}
+              selectedValue={draftIntegrationFilters.status}
+              value="All"
+            />
           </div>
-          <SearchButton />
+          <SearchButton
+            message={
+              isFetching
+                ? 'Searching integrations...'
+                : 'Integrations search completed'
+            }
+            onSearch={() => {
+              const nextFilters = {
+                name: draftIntegrationFilters.name.trim(),
+                status: draftIntegrationFilters.status,
+                type: draftIntegrationFilters.type,
+              };
+
+              setAppliedIntegrationFilters(nextFilters);
+              if (
+                nextFilters.name === appliedIntegrationFilters.name &&
+                nextFilters.status === appliedIntegrationFilters.status &&
+                nextFilters.type === appliedIntegrationFilters.type
+              ) {
+                void refetch();
+              }
+            }}
+          />
         </Toolbar>
         <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
-          <DataTable
-            columns={integrationColumns}
-            containerClassName="rounded-none border-0"
-            getRowKey={(row) => row.name}
-            rows={integrations}
-          />
-          <IntegrationPagination />
+          {isPending ? (
+            <IntegrationTableState>
+              Loading incident integrations...
+            </IntegrationTableState>
+          ) : null}
+          {isError ? (
+            <IntegrationTableState tone="danger">
+              {error.message || 'Failed to load incident integrations.'}
+            </IntegrationTableState>
+          ) : null}
+          {!isPending && !isError && integrationRows.length === 0 ? (
+            <IntegrationTableState>
+              No incident integrations found.
+            </IntegrationTableState>
+          ) : null}
+          {!isPending && !isError && integrationRows.length > 0 ? (
+            <DataTable
+              columns={integrationColumns}
+              containerClassName="rounded-none border-0"
+              getRowKey={(row) => String(row.id)}
+              rows={integrationRows}
+            />
+          ) : null}
+          <IntegrationPagination count={integrationRows.length} />
         </section>
       </div>
     </AppShell>
@@ -2319,9 +2942,9 @@ export function InspectionsPage(): ReactNode {
         <Toolbar>
           <div className="flex flex-wrap gap-4">
             <FilterInput placeholder="Search inspections by name..." />
-            <LabeledFilterSelect label="Status" value="All Statuses" />
-            <LabeledFilterSelect label="Type" value="All Types" />
-            <LabeledFilterSelect label="Environment" value="All Environments" />
+            <LabeledFilterSelect label="Status" value="All" />
+            <LabeledFilterSelect label="Type" value="All" />
+            <LabeledFilterSelect label="Environment" value="All" />
             <LabeledFilterSelect label="Created At" value="Last 7 days" />
           </div>
           <SearchButton />
@@ -2468,8 +3091,8 @@ export function EntityTopologyPage(): ReactNode {
       <div className="flex min-h-0 flex-1 flex-col overflow-auto px-6 pb-6">
         <section className="mb-3 rounded-md border border-slate-200 bg-white p-4">
           <div className="flex items-center gap-4">
-            <LabeledFilterSelect label="Environment" value="All Environments" />
-            <LabeledFilterSelect label="Entity Type" value="All Types" />
+            <LabeledFilterSelect label="Environment" value="All" />
+            <LabeledFilterSelect label="Entity Type" value="All" />
             <label className="relative block min-w-0 flex-1">
               <span className="sr-only">Search topology entities</span>
               <input
@@ -2852,9 +3475,9 @@ export function KnowledgeFilesPage(): ReactNode {
         <Toolbar>
           <div className="flex flex-wrap gap-4">
             <FilterInput placeholder="Search files..." />
-            <LabeledFilterSelect label="Category" value="All Categories" />
-            <LabeledFilterSelect label="Type" value="All Types" />
-            <LabeledFilterSelect label="Status" value="All Status" />
+            <LabeledFilterSelect label="Category" value="All" />
+            <LabeledFilterSelect label="Type" value="All" />
+            <LabeledFilterSelect label="Status" value="All" />
           </div>
           <SearchButton />
         </Toolbar>
@@ -2891,12 +3514,9 @@ export function SettingsModelsPage(): ReactNode {
         <Toolbar>
           <div className="flex flex-wrap gap-4">
             <FilterInput placeholder="Search models by name or provider..." />
-            <LabeledFilterSelect label="Provider" value="All Providers" />
-            <LabeledFilterSelect label="Status" value="All Statuses" />
-            <LabeledFilterSelect
-              label="Capabilities"
-              value="All Capabilities"
-            />
+            <LabeledFilterSelect label="Provider" value="All" />
+            <LabeledFilterSelect label="Status" value="All" />
+            <LabeledFilterSelect label="Capabilities" value="All" />
           </div>
           <SearchButton />
         </Toolbar>
@@ -2925,6 +3545,7 @@ export function SettingsNotificationsPage(): ReactNode {
           </ActionButton>
         }
         actionsClassName="pr-4"
+        description="Manage notification webhooks and delivery channels for alerts, updates, and incident workflows."
         parentTitle="Settings"
         title="Notifications"
       />

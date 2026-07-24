@@ -365,9 +365,13 @@ export function PageHeader({
 }
 
 export function FilterInput({
+  onChange,
   placeholder,
+  value,
 }: {
+  onChange?: (value: string) => void;
   placeholder: string;
+  value?: string;
 }): ReactNode {
   return (
     <label className="relative block w-[300px]">
@@ -379,8 +383,10 @@ export function FilterInput({
       />
       <input
         className="h-10 w-full rounded-md border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+        onChange={(event) => onChange?.(event.target.value)}
         placeholder={placeholder}
         type="search"
+        value={value}
       />
     </label>
   );

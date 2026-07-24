@@ -18,8 +18,13 @@ class Settings(BaseSettings):
     knowledge_base_url: HttpUrl | None = None
     knowledge_base_timeout_seconds: float = 30.0
     agent_timeout_seconds: float = 30.0
+    cors_allowed_origins: str = "http://localhost:3080,http://127.0.0.1:3080"
     environment: str = "development"
     log_level: str = "INFO"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()]
 
 
 @lru_cache

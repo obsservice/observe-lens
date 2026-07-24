@@ -1,4 +1,34 @@
 ###########################################################
+# Common Header Parameters
+###########################################################
+
+TenantId:
+  name: X-Tenant-Id
+  in: header
+  required: true
+  description: Tenant ID.
+  schema:
+    type: integer
+    format: int64
+
+UserId:
+  name: X-User-Id
+  in: header
+  required: true
+  description: User ID.
+  schema:
+    type: integer
+    format: int64
+
+RequestId:
+  name: X-Request-Id
+  in: header
+  required: false
+  description: Request ID for tracing.
+  schema:
+    type: string
+
+###########################################################
 # Common Query Parameters
 ###########################################################
 

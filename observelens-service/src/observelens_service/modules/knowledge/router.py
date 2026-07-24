@@ -5,6 +5,8 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 
 from observelens_service.clients.knowledge_base import KnowledgeBaseClient
+from observelens_service.common.context import RequestContext
+from observelens_service.common.dependencies import get_request_context
 from observelens_service.config.settings import get_settings
 from observelens_service.modules.knowledge.schemas import (
     KnowledgeFilePage,
@@ -28,10 +30,12 @@ def get_service() -> KnowledgeService:
 
 
 ServiceDependency = Annotated[KnowledgeService, Depends(get_service)]
+ContextDependency = Annotated[RequestContext, Depends(get_request_context)]
 
 
 @router.get("/files", response_model=KnowledgeFilePage)
 async def list_files(
+    context: ContextDependency,
     service: ServiceDependency,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -43,7 +47,7 @@ async def list_files(
 
 @router.post("/files", response_model=KnowledgeFileResponse, status_code=201)
 async def upload_file(
-    service: ServiceDependency, file: Annotated[UploadFile, File()]
+    context: ContextDependency, service: ServiceDependency, file: Annotated[UploadFile, File()]
 ) -> KnowledgeFileResponse:
     content = await file.read(MAX_FILE_SIZE_BYTES + 1)
     if len(content) > MAX_FILE_SIZE_BYTES:
@@ -55,33 +59,45 @@ async def upload_file(
 
 
 @router.get("/file-types")
-async def list_file_types(service: ServiceDependency) -> list[dict[str, str]]:
+async def list_file_types(
+    context: ContextDependency, service: ServiceDependency
+) -> list[dict[str, str]]:
     return await service.file_types()
 
 
 @router.get("/index-statuses")
-async def list_index_statuses(service: ServiceDependency) -> list[dict[str, str]]:
+async def list_index_statuses(
+    context: ContextDependency, service: ServiceDependency
+) -> list[dict[str, str]]:
     return await service.index_statuses()
 
 
 @router.get("/files/{file_id}", response_model=KnowledgeFileResponse)
-async def get_file(file_id: str, service: ServiceDependency) -> KnowledgeFileResponse:
+async def get_file(
+    file_id: str, context: ContextDependency, service: ServiceDependency
+) -> KnowledgeFileResponse:
     return await service.get_file(file_id)
 
 
 @router.delete("/files/{file_id}", status_code=204)
-async def delete_file(file_id: str, service: ServiceDependency) -> Response:
+async def delete_file(
+    file_id: str, context: ContextDependency, service: ServiceDependency
+) -> Response:
     await service.delete(file_id)
     return Response(status_code=204)
 
 
 @router.get("/files/{file_id}/status", response_model=KnowledgeFileStatusResponse)
-async def get_file_status(file_id: str, service: ServiceDependency) -> KnowledgeFileStatusResponse:
+async def get_file_status(
+    file_id: str, context: ContextDependency, service: ServiceDependency
+) -> KnowledgeFileStatusResponse:
     return await service.status(file_id)
 
 
 @router.post(
     "/files/{file_id}/reindex", response_model=KnowledgeFileStatusResponse, status_code=202
 )
-async def reindex_file(file_id: str, service: ServiceDependency) -> KnowledgeFileStatusResponse:
+async def reindex_file(
+    file_id: str, context: ContextDependency, service: ServiceDependency
+) -> KnowledgeFileStatusResponse:
     return await service.reindex(file_id)

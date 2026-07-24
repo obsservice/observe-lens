@@ -46,7 +46,7 @@ async def create_model(r: ModelWrite, c: C, s: S) -> ModelResponse:
 
 
 @router.get("/models/providers")
-async def providers() -> list[dict[str, str]]:
+async def providers(c: C) -> list[dict[str, str]]:
     return [
         {"value": x, "label": x}
         for x in ("OPENAI", "AZURE_OPENAI", "QWEN", "DEEPSEEK", "CLAUDE", "GEMINI")
@@ -54,7 +54,7 @@ async def providers() -> list[dict[str, str]]:
 
 
 @router.get("/models/statuses")
-async def model_statuses() -> list[dict[str, str]]:
+async def model_statuses(c: C) -> list[dict[str, str]]:
     return [{"value": x, "label": x.title()} for x in ("ACTIVE", "DISABLED")]
 
 
@@ -97,12 +97,12 @@ async def create_notification(r: NotificationWrite, c: C, s: S) -> NotificationR
 
 
 @router.get("/notifications/types")
-async def notification_types() -> list[dict[str, str]]:
+async def notification_types(c: C) -> list[dict[str, str]]:
     return [{"value": "WEBHOOK", "label": "Webhook"}]
 
 
 @router.get("/notifications/statuses")
-async def notification_statuses() -> list[dict[str, str]]:
+async def notification_statuses(c: C) -> list[dict[str, str]]:
     return [{"value": x, "label": x.title()} for x in ("ACTIVE", "DISABLED")]
 
 

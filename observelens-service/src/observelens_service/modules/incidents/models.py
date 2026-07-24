@@ -44,7 +44,9 @@ class IncidentIntegrationModel(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     tenant_id: Mapped[int] = mapped_column(BigInteger, index=True)
     name: Mapped[str] = mapped_column(String(128))
+    type: Mapped[str] = mapped_column(String(32), default="Webhook", server_default="Webhook")
     status: Mapped[str] = mapped_column(String(16))
+    token: Mapped[str] = mapped_column(String(128))
     token_hint: Mapped[str] = mapped_column(String(16))
     create_time: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, server_default=func.now()

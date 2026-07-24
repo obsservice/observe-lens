@@ -38,13 +38,15 @@ IncidentPage:
   allOf: [{ $ref: common.yaml#/PagedResult }, { type: object, properties: { items: { type: array, items: { $ref: '#/Incident' } } } }]
 IncidentIntegration:
   type: object
-  required: [id, name, status, webhook_url, created_at]
+  required: [id, name, type, status, webhook_url, token, created_at]
   properties:
     id: { $ref: common.yaml#/UUID }
     name: { type: string }
-    status: { type: string, enum: [enabled, disabled] }
+    type: { type: string, enum: [Webhook, AlertManager, Grafana, Prometheus, Datadog, Zabbix, Nagios, OpsGenie] }
+    status: { type: string, enum: [ENABLED, DISABLED] }
     webhook_url: { type: string, format: uri }
-    token_hint: { type: string, description: Masked token }
+    token: { type: string, description: Plaintext integration token }
+    token_hint: { type: string, description: Masked token retained for compatibility }
     created_at: { $ref: common.yaml#/Timestamp }
     updated_at: { $ref: common.yaml#/Timestamp }
 IntegrationCreateRequest:
@@ -52,10 +54,12 @@ IntegrationCreateRequest:
   required: [name]
   properties:
     name: { type: string }
-    status: { type: string, enum: [enabled, disabled], default: enabled }
+    type: { type: string, enum: [Webhook, AlertManager, Grafana, Prometheus, Datadog, Zabbix, Nagios, OpsGenie], default: Webhook }
+    status: { type: string, enum: [ENABLED, DISABLED], default: ENABLED }
 IntegrationUpdateRequest:
   type: object
   minProperties: 1
   properties:
     name: { type: string }
-    status: { type: string, enum: [enabled, disabled] }
+    type: { type: string, enum: [Webhook, AlertManager, Grafana, Prometheus, Datadog, Zabbix, Nagios, OpsGenie] }
+    status: { type: string, enum: [ENABLED, DISABLED] }

@@ -16,6 +16,17 @@ class ResourceNotFoundError(DomainError):
         super().__init__("RESOURCE_NOT_FOUND", f"{resource} not found", 404)
 
 
+class ResourceConflictError(DomainError):
+    def __init__(self, message: str) -> None:
+        super().__init__("RESOURCE_CONFLICT", message, 409)
+
+
+class ResourceAlreadyExistsError(DomainError):
+    def __init__(self, resource: str, field: str, value: str) -> None:
+        message = f'{resource} with {field} "{value}" already exists'
+        super().__init__("RESOURCE_ALREADY_EXISTS", message, 409)
+
+
 class DependencyUnavailableError(DomainError):
     def __init__(self, dependency: str) -> None:
         super().__init__("DEPENDENCY_UNAVAILABLE", f"{dependency} is unavailable", 503)

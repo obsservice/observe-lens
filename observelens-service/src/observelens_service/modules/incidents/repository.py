@@ -51,13 +51,38 @@ class IncidentRepository:
         )
         return result
 
-    async def list_integrations(self, tenant_id: int) -> builtins.list[IncidentIntegrationModel]:
-        result = await self._session.scalars(
-            select(IncidentIntegrationModel)
-            .where(
+    async def get_integration_by_name(
+        self, tenant_id: int, name: str
+    ) -> IncidentIntegrationModel | None:
+        result = await self._session.scalar(
+            select(IncidentIntegrationModel).where(
                 IncidentIntegrationModel.tenant_id == tenant_id,
+                func.lower(IncidentIntegrationModel.name) == name.lower(),
                 IncidentIntegrationModel.delete_time.is_(None),
             )
+        )
+        return result
+
+    async def list_integrations(
+        self,
+        tenant_id: int,
+        integration_type: str | None,
+        status: str | None,
+        name: str | None,
+    ) -> builtins.list[IncidentIntegrationModel]:
+        filters = [
+            IncidentIntegrationModel.tenant_id == tenant_id,
+            IncidentIntegrationModel.delete_time.is_(None),
+        ]
+        if integration_type:
+            filters.append(IncidentIntegrationModel.type == integration_type)
+        if status:
+            filters.append(IncidentIntegrationModel.status == status)
+        if name:
+            filters.append(IncidentIntegrationModel.name.ilike(f"%{name}%"))
+        result = await self._session.scalars(
+            select(IncidentIntegrationModel)
+            .where(*filters)
             .order_by(IncidentIntegrationModel.create_time.desc())
         )
         return [*result.all()]
