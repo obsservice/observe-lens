@@ -304,7 +304,7 @@
 
 ---
 
-## 1.7 observability-knowledge-base
+## 1.7 observelens-knowledge-base
 
 | 分类                    | 技术选型           |
 | --------------------- | -------------- |
