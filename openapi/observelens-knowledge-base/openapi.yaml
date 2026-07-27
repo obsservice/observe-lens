@@ -1,0 +1,1216 @@
+openapi: 3.1.0
+
+info:
+  title: ObserveLens Knowledge Base API
+  version: 1.0.0
+  description: |
+    REST API for observelens-knowledge-base.
+
+    The Knowledge Base service manages unstructured knowledge documents,
+    asynchronous parsing and indexing, hybrid retrieval, citations, feedback,
+    and stable context retrieval for ObserveLens Agent workflows.
+
+servers:
+  - url: http://localhost:3085/api/v1
+    description: Local Development
+
+tags:
+  - name: KnowledgeBase
+    description: Knowledge base management
+  - name: Document
+    description: Document, version, content, and indexing management
+  - name: Retrieval
+    description: Hybrid knowledge retrieval and feedback
+  - name: InternalContext
+    description: Stable internal context retrieval for agents
+  - name: IndexTask
+    description: Asynchronous indexing task management
+  - name: System
+    description: Service health and metadata
+
+security:
+  - bearerAuth: []
+
+paths:
+  /knowledge-bases:
+    parameters:
+      - $ref: "#/components/parameters/TenantId"
+      - $ref: "#/components/parameters/UserId"
+      - $ref: "#/components/parameters/RequestId"
+    get:
+      tags: [KnowledgeBase]
+      summary: List knowledge bases
+      operationId: listKnowledgeBases
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - $ref: "#/components/parameters/Keyword"
+        - $ref: "#/components/parameters/Status"
+      responses:
+        "200":
+          description: Knowledge bases
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KnowledgeBasePage"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      tags: [KnowledgeBase]
+      summary: Create knowledge base
+      operationId: createKnowledgeBase
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateKnowledgeBaseRequest"
+      responses:
+        "201":
+          description: Created knowledge base
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KnowledgeBase"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /knowledge-bases/{knowledge_base_id}:
+    parameters:
+      - $ref: "#/components/parameters/TenantId"
+      - $ref: "#/components/parameters/UserId"
+      - $ref: "#/components/parameters/RequestId"
+      - $ref: "#/components/parameters/KnowledgeBaseId"
+    get:
+      tags: [KnowledgeBase]
+      summary: Get knowledge base
+      operationId: getKnowledgeBase
+      responses:
+        "200":
+          description: Knowledge base
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KnowledgeBase"
+        default:
+          $ref: "#/components/responses/Error"
+    patch:
+      tags: [KnowledgeBase]
+      summary: Update knowledge base
+      operationId: updateKnowledgeBase
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateKnowledgeBaseRequest"
+      responses:
+        "200":
+          description: Updated knowledge base
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KnowledgeBase"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      tags: [KnowledgeBase]
+      summary: Delete knowledge base
+      operationId: deleteKnowledgeBase
+      responses:
+        "204":
+          description: Deleted
+        default:
+          $ref: "#/components/responses/Error"
+
+  /knowledge-bases/{knowledge_base_id}/documents:
+    parameters:
+      - $ref: "#/components/parameters/TenantId"
+      - $ref: "#/components/parameters/UserId"
+      - $ref: "#/components/parameters/RequestId"
+      - $ref: "#/components/parameters/KnowledgeBaseId"
+    get:
+      tags: [Document]
+      summary: List documents in a knowledge base
+      operationId: listDocuments
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - $ref: "#/components/parameters/Keyword"
+        - $ref: "#/components/parameters/DocumentType"
+        - $ref: "#/components/parameters/DocumentStatus"
+        - $ref: "#/components/parameters/Tag"
+      responses:
+        "200":
+          description: Documents
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentPage"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      tags: [Document]
+      summary: Upload document and queue indexing
+      operationId: uploadDocument
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/UploadDocumentRequest"
+      responses:
+        "201":
+          description: Document uploaded and indexing task created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadDocumentResponse"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /documents/{document_id}:
+    parameters:
+      - $ref: "#/components/parameters/TenantId"
+      - $ref: "#/components/parameters/UserId"
+      - $ref: "#/components/parameters/RequestId"
+      - $ref: "#/components/parameters/DocumentId"
+    get:
+      tags: [Document]
+      summary: Get document metadata
+      operationId: getDocument
+      responses:
+        "200":
+          description: Document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+        default:
+          $ref: "#/components/responses/Error"
+    patch:
+      tags: [Document]
+      summary: Update document metadata
+      operationId: updateDocument
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDocumentRequest"
+      responses:
+        "200":
+          description: Updated document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      tags: [Document]
+      summary: Archive document
+      operationId: deleteDocument
+      responses:
+        "204":
+          description: Archived
+        default:
+          $ref: "#/components/responses/Error"
+
+  /documents/{document_id}/versions:
+    parameters:
+      - $ref: "#/components/parameters/TenantId"
+      - $ref: "#/components/parameters/UserId"
+      - $ref: "#/components/parameters/RequestId"
+      - $ref: "#/components/parameters/DocumentId"
+    get:
+      tags: [Document]
+      summary: List document versions
+      operationId: listDocumentVersions
+      responses:
+        "200":
+          description: Document versions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DocumentVersion"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      tags: [Document]
+      summary: Upload a new document version and queue indexing
+      operationId: createDocumentVersion
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/CreateDocumentVersionRequest"
+      responses:
+        "201":
+          description: Version created and indexing task queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateDocumentVersionResponse"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /documents/{document_id}/content:
+    parameters:
+      - $ref: "#/components/parameters/TenantId"
+      - $ref: "#/components/parameters/UserId"
+      - $ref: "#/components/parameters/RequestId"
+      - $ref: "#/components/parameters/DocumentId"
+    get:
+      tags: [Document]
+      summary: Download original document content
+      operationId: getDocumentContent
+      parameters:
+        - name: version_id
+          in: query
+          required: false
+          description: Version ID. Defaults to the current active version.
+          schema:
+            $ref: "#/components/schemas/UUID"
+      responses:
+        "200":
+          description: Original document content
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        default:
+          $ref: "#/components/responses/Error"
+
+  /documents/{document_id}/reindex:
+    parameters:
+      - $ref: "#/components/parameters/TenantId"
+      - $ref: "#/components/parameters/UserId"
+      - $ref: "#/components/parameters/RequestId"
+      - $ref: "#/components/parameters/DocumentId"
+    post:
+      tags: [Document]
+      summary: Reindex current document version
+      operationId: reindexDocument
+      responses:
+        "202":
+          description: Reindex task queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IndexTask"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /retrieval/search:
+    parameters:
+      - $ref: "#/components/parameters/TenantId"
+      - $ref: "#/components/parameters/UserId"
+      - $ref: "#/components/parameters/RequestId"
+    post:
+      tags: [Retrieval]
+      summary: Search knowledge with hybrid retrieval
+      operationId: searchKnowledge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RetrievalSearchRequest"
+      responses:
+        "200":
+          description: Retrieval results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RetrievalSearchResponse"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /retrieval/feedback:
+    parameters:
+      - $ref: "#/components/parameters/TenantId"
+      - $ref: "#/components/parameters/UserId"
+      - $ref: "#/components/parameters/RequestId"
+    post:
+      tags: [Retrieval]
+      summary: Submit retrieval feedback
+      operationId: submitRetrievalFeedback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RetrievalFeedbackRequest"
+      responses:
+        "201":
+          description: Feedback recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RetrievalFeedback"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /internal/v1/context/retrieve:
+    parameters:
+      - $ref: "#/components/parameters/TenantId"
+      - $ref: "#/components/parameters/UserId"
+      - $ref: "#/components/parameters/RequestId"
+    post:
+      tags: [InternalContext]
+      summary: Retrieve agent-ready knowledge context
+      operationId: retrieveInternalContext
+      description: |
+        Stable internal API used by ObserveLens Agent. It returns selected,
+        permission-filtered, reranked knowledge contexts with citations.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InternalContextRetrieveRequest"
+      responses:
+        "200":
+          description: Agent-ready contexts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InternalContextRetrieveResponse"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /index-tasks/{task_id}:
+    parameters:
+      - $ref: "#/components/parameters/TenantId"
+      - $ref: "#/components/parameters/UserId"
+      - $ref: "#/components/parameters/RequestId"
+      - $ref: "#/components/parameters/TaskId"
+    get:
+      tags: [IndexTask]
+      summary: Get indexing task
+      operationId: getIndexTask
+      responses:
+        "200":
+          description: Indexing task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IndexTask"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /index-tasks/{task_id}/retry:
+    parameters:
+      - $ref: "#/components/parameters/TenantId"
+      - $ref: "#/components/parameters/UserId"
+      - $ref: "#/components/parameters/RequestId"
+      - $ref: "#/components/parameters/TaskId"
+    post:
+      tags: [IndexTask]
+      summary: Retry failed indexing task
+      operationId: retryIndexTask
+      responses:
+        "202":
+          description: Retry queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IndexTask"
+        default:
+          $ref: "#/components/responses/Error"
+
+  /system/health:
+    get:
+      tags: [System]
+      summary: Health check
+      operationId: getHealth
+      security: []
+      responses:
+        "200":
+          description: Service health
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    TenantId:
+      name: X-Tenant-Id
+      in: header
+      required: true
+      description: Current tenant ID. The service uses it for tenant isolation.
+      schema:
+        $ref: "#/components/schemas/UUID"
+    UserId:
+      name: X-User-Id
+      in: header
+      required: true
+      description: Current user ID.
+      schema:
+        $ref: "#/components/schemas/UUID"
+    RequestId:
+      name: X-Request-Id
+      in: header
+      required: false
+      description: Request ID for tracing.
+      schema:
+        type: string
+    Page:
+      name: page
+      in: query
+      required: false
+      description: Page number.
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: page_size
+      in: query
+      required: false
+      description: Number of items per page.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    Keyword:
+      name: keyword
+      in: query
+      required: false
+      description: Search keyword.
+      schema:
+        type: string
+    Status:
+      name: status
+      in: query
+      required: false
+      schema:
+        $ref: "#/components/schemas/KnowledgeBaseStatus"
+    DocumentType:
+      name: document_type
+      in: query
+      required: false
+      schema:
+        $ref: "#/components/schemas/DocumentType"
+    DocumentStatus:
+      name: status
+      in: query
+      required: false
+      schema:
+        $ref: "#/components/schemas/DocumentStatus"
+    Tag:
+      name: tag
+      in: query
+      required: false
+      description: Filter by one document tag.
+      schema:
+        type: string
+    KnowledgeBaseId:
+      name: knowledge_base_id
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/UUID"
+    DocumentId:
+      name: document_id
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/UUID"
+    TaskId:
+      name: task_id
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/UUID"
+
+  responses:
+    Error:
+      description: Error response
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    UUID:
+      type: string
+      format: uuid
+    Timestamp:
+      type: string
+      format: date-time
+      example: "2026-07-27T12:30:15Z"
+    Metadata:
+      type: object
+      additionalProperties: true
+    PageMeta:
+      type: object
+      required: [total, page, page_size]
+      properties:
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        page_size:
+          type: integer
+          minimum: 1
+
+    ErrorCode:
+      type: string
+      enum:
+        - KNOWLEDGE_BASE_NOT_FOUND
+        - DOCUMENT_NOT_FOUND
+        - DOCUMENT_TYPE_UNSUPPORTED
+        - DOCUMENT_TOO_LARGE
+        - DOCUMENT_PARSE_FAILED
+        - DOCUMENT_INDEX_FAILED
+        - EMBEDDING_REQUEST_FAILED
+        - RETRIEVAL_FAILED
+        - RERANK_FAILED
+        - PERMISSION_DENIED
+        - INDEX_VERSION_CONFLICT
+        - VALIDATION_FAILED
+        - INTERNAL_ERROR
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, trace_id]
+          properties:
+            code:
+              $ref: "#/components/schemas/ErrorCode"
+            message:
+              type: string
+            details:
+              $ref: "#/components/schemas/Metadata"
+            trace_id:
+              type: string
+
+    KnowledgeBaseStatus:
+      type: string
+      enum: [ACTIVE, DISABLED]
+    KnowledgeBase:
+      type: object
+      required:
+        - id
+        - tenant_id
+        - name
+        - status
+        - embedding_model
+        - created_by
+        - created_at
+        - updated_at
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        tenant_id:
+          $ref: "#/components/schemas/UUID"
+        name:
+          type: string
+          example: Pulsar Operations Knowledge Base
+        description:
+          type: string
+          nullable: true
+        status:
+          $ref: "#/components/schemas/KnowledgeBaseStatus"
+        embedding_model:
+          type: string
+          example: text-embedding-model
+        created_by:
+          $ref: "#/components/schemas/UUID"
+        created_at:
+          $ref: "#/components/schemas/Timestamp"
+        updated_at:
+          $ref: "#/components/schemas/Timestamp"
+    KnowledgeBasePage:
+      type: object
+      required: [items, total, page, page_size]
+      allOf:
+        - $ref: "#/components/schemas/PageMeta"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/KnowledgeBase"
+    CreateKnowledgeBaseRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        embedding_model:
+          type: string
+          description: Optional embedding model override. Defaults to service configuration.
+    UpdateKnowledgeBaseRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          nullable: true
+        status:
+          $ref: "#/components/schemas/KnowledgeBaseStatus"
+        embedding_model:
+          type: string
+          description: Changing the embedding model should trigger reindexing.
+
+    DocumentType:
+      type: string
+      enum: [GUIDE, SOP, CASE, REFERENCE, OTHER]
+    DocumentSourceType:
+      type: string
+      enum: [UPLOAD, URL, API]
+    DocumentStatus:
+      type: string
+      enum: [UPLOADED, PENDING, PROCESSING, READY, REINDEXING, FAILED, ARCHIVED]
+    SupportedMimeType:
+      type: string
+      enum:
+        - text/plain
+        - text/markdown
+        - text/html
+        - application/pdf
+        - application/vnd.openxmlformats-officedocument.wordprocessingml.document
+    EntityRef:
+      type: object
+      required: [type, name]
+      properties:
+        type:
+          type: string
+          example: SERVICE
+        name:
+          type: string
+          example: pulsar-broker
+    Document:
+      type: object
+      required:
+        - id
+        - tenant_id
+        - knowledge_base_id
+        - name
+        - document_type
+        - source_type
+        - status
+        - tags
+        - created_by
+        - created_at
+        - updated_at
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        tenant_id:
+          $ref: "#/components/schemas/UUID"
+        knowledge_base_id:
+          $ref: "#/components/schemas/UUID"
+        name:
+          type: string
+          example: Pulsar Broker Memory Runbook
+        document_type:
+          $ref: "#/components/schemas/DocumentType"
+        source_type:
+          $ref: "#/components/schemas/DocumentSourceType"
+        current_version_id:
+          $ref: "#/components/schemas/UUID"
+          nullable: true
+        status:
+          $ref: "#/components/schemas/DocumentStatus"
+        tags:
+          type: array
+          items:
+            type: string
+          example: [pulsar, broker, direct-memory]
+        metadata:
+          $ref: "#/components/schemas/Metadata"
+        created_by:
+          $ref: "#/components/schemas/UUID"
+        created_at:
+          $ref: "#/components/schemas/Timestamp"
+        updated_at:
+          $ref: "#/components/schemas/Timestamp"
+        archived_at:
+          $ref: "#/components/schemas/Timestamp"
+          nullable: true
+    DocumentPage:
+      type: object
+      required: [items, total, page, page_size]
+      allOf:
+        - $ref: "#/components/schemas/PageMeta"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/Document"
+
+    ChunkConfig:
+      type: object
+      properties:
+        target_tokens:
+          type: integer
+          default: 600
+        max_tokens:
+          type: integer
+          default: 900
+        overlap_tokens:
+          type: integer
+          default: 100
+        preserve_code_block:
+          type: boolean
+          default: true
+        preserve_table:
+          type: boolean
+          default: true
+    DocumentVersion:
+      type: object
+      required:
+        - id
+        - tenant_id
+        - document_id
+        - version
+        - file_name
+        - mime_type
+        - file_size
+        - status
+        - created_at
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        tenant_id:
+          $ref: "#/components/schemas/UUID"
+        document_id:
+          $ref: "#/components/schemas/UUID"
+        version:
+          type: integer
+          minimum: 1
+        file_name:
+          type: string
+        mime_type:
+          type: string
+        file_size:
+          type: integer
+          format: int64
+          minimum: 0
+        content_hash:
+          type: string
+        storage_uri:
+          type: string
+        parser_version:
+          type: string
+        chunk_config:
+          $ref: "#/components/schemas/ChunkConfig"
+        embedding_model:
+          type: string
+        status:
+          $ref: "#/components/schemas/DocumentStatus"
+        error_message:
+          type: string
+          nullable: true
+        created_at:
+          $ref: "#/components/schemas/Timestamp"
+        indexed_at:
+          $ref: "#/components/schemas/Timestamp"
+          nullable: true
+
+    UploadDocumentRequest:
+      type: object
+      required: [file, name, document_type]
+      properties:
+        file:
+          type: string
+          format: binary
+        name:
+          type: string
+        document_type:
+          $ref: "#/components/schemas/DocumentType"
+        tags:
+          type: array
+          items:
+            type: string
+        metadata:
+          $ref: "#/components/schemas/Metadata"
+    UploadDocumentResponse:
+      type: object
+      required: [document, version, index_task]
+      properties:
+        document:
+          $ref: "#/components/schemas/Document"
+        version:
+          $ref: "#/components/schemas/DocumentVersion"
+        index_task:
+          $ref: "#/components/schemas/IndexTask"
+    UpdateDocumentRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        document_type:
+          $ref: "#/components/schemas/DocumentType"
+        tags:
+          type: array
+          items:
+            type: string
+        metadata:
+          $ref: "#/components/schemas/Metadata"
+    CreateDocumentVersionRequest:
+      type: object
+      required: [file]
+      properties:
+        file:
+          type: string
+          format: binary
+        metadata:
+          $ref: "#/components/schemas/Metadata"
+    CreateDocumentVersionResponse:
+      type: object
+      required: [version, index_task]
+      properties:
+        version:
+          $ref: "#/components/schemas/DocumentVersion"
+        index_task:
+          $ref: "#/components/schemas/IndexTask"
+
+    IndexTaskType:
+      type: string
+      enum: [INDEX, REINDEX, DELETE]
+    IndexTaskStatus:
+      type: string
+      enum: [PENDING, RUNNING, SUCCEEDED, FAILED]
+    IndexTask:
+      type: object
+      required:
+        - id
+        - tenant_id
+        - document_id
+        - document_version_id
+        - task_type
+        - status
+        - retry_count
+        - created_at
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        tenant_id:
+          $ref: "#/components/schemas/UUID"
+        document_id:
+          $ref: "#/components/schemas/UUID"
+        document_version_id:
+          $ref: "#/components/schemas/UUID"
+        task_type:
+          $ref: "#/components/schemas/IndexTaskType"
+        status:
+          $ref: "#/components/schemas/IndexTaskStatus"
+        retry_count:
+          type: integer
+          minimum: 0
+        error_message:
+          type: string
+          nullable: true
+        started_at:
+          $ref: "#/components/schemas/Timestamp"
+          nullable: true
+        finished_at:
+          $ref: "#/components/schemas/Timestamp"
+          nullable: true
+        created_at:
+          $ref: "#/components/schemas/Timestamp"
+
+    RetrievalFilters:
+      type: object
+      properties:
+        document_types:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentType"
+        tags:
+          type: array
+          items:
+            type: string
+        entities:
+          type: array
+          items:
+            $ref: "#/components/schemas/EntityRef"
+        document_ids:
+          type: array
+          items:
+            $ref: "#/components/schemas/UUID"
+    RetrievalSearchRequest:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+          minLength: 1
+          example: Pulsar Broker Direct Memory OOM 如何排查？
+        knowledge_base_ids:
+          type: array
+          items:
+            $ref: "#/components/schemas/UUID"
+        filters:
+          $ref: "#/components/schemas/RetrievalFilters"
+        top_k:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 6
+        rerank:
+          type: boolean
+          default: true
+        include_trace:
+          type: boolean
+          default: true
+    Citation:
+      type: object
+      required: [document_id, document_name, document_version, source_url]
+      properties:
+        document_id:
+          $ref: "#/components/schemas/UUID"
+        document_name:
+          type: string
+        document_version:
+          type: integer
+          minimum: 1
+        section:
+          type: string
+          nullable: true
+        page_number:
+          type: integer
+          nullable: true
+        source_url:
+          type: string
+          example: /api/v1/documents/00000000-0000-0000-0000-000000000001/content
+        snippet:
+          type: string
+          nullable: true
+    RetrievalResult:
+      type: object
+      required: [chunk_id, score, content, citation, metadata]
+      properties:
+        chunk_id:
+          $ref: "#/components/schemas/UUID"
+        score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        content:
+          type: string
+        citation:
+          $ref: "#/components/schemas/Citation"
+        metadata:
+          type: object
+          properties:
+            knowledge_base_id:
+              $ref: "#/components/schemas/UUID"
+            document_type:
+              $ref: "#/components/schemas/DocumentType"
+            tags:
+              type: array
+              items:
+                type: string
+            entities:
+              type: array
+              items:
+                $ref: "#/components/schemas/EntityRef"
+            section_path:
+              type: array
+              items:
+                type: string
+            chunk_index:
+              type: integer
+    RetrievalTrace:
+      type: object
+      properties:
+        retrieval_id:
+          $ref: "#/components/schemas/UUID"
+        rewritten_query:
+          type: string
+          nullable: true
+        vector_candidates:
+          type: integer
+          minimum: 0
+        keyword_candidates:
+          type: integer
+          minimum: 0
+        reranked_candidates:
+          type: integer
+          minimum: 0
+        latency_ms:
+          type: integer
+          minimum: 0
+    RetrievalSearchResponse:
+      type: object
+      required: [query, results]
+      properties:
+        query:
+          type: string
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/RetrievalResult"
+        trace:
+          $ref: "#/components/schemas/RetrievalTrace"
+
+    RetrievalFeedbackType:
+      type: string
+      enum: [RELEVANT, IRRELEVANT, OUTDATED]
+    RetrievalFeedbackRequest:
+      type: object
+      required: [retrieval_log_id, chunk_id, rating, feedback_type]
+      properties:
+        retrieval_log_id:
+          $ref: "#/components/schemas/UUID"
+        chunk_id:
+          $ref: "#/components/schemas/UUID"
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        feedback_type:
+          $ref: "#/components/schemas/RetrievalFeedbackType"
+        comment:
+          type: string
+          maxLength: 2000
+    RetrievalFeedback:
+      type: object
+      required:
+        - id
+        - tenant_id
+        - retrieval_log_id
+        - chunk_id
+        - rating
+        - feedback_type
+        - created_by
+        - created_at
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        tenant_id:
+          $ref: "#/components/schemas/UUID"
+        retrieval_log_id:
+          $ref: "#/components/schemas/UUID"
+        chunk_id:
+          $ref: "#/components/schemas/UUID"
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        feedback_type:
+          $ref: "#/components/schemas/RetrievalFeedbackType"
+        comment:
+          type: string
+          nullable: true
+        created_by:
+          $ref: "#/components/schemas/UUID"
+        created_at:
+          $ref: "#/components/schemas/Timestamp"
+
+    InternalContextRetrieveRequest:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+          minLength: 1
+        knowledge_base_ids:
+          type: array
+          items:
+            $ref: "#/components/schemas/UUID"
+        entity_type:
+          type: string
+          nullable: true
+        entity_name:
+          type: string
+          nullable: true
+        document_types:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentType"
+        tags:
+          type: array
+          items:
+            type: string
+        top_k:
+          type: integer
+          minimum: 1
+          maximum: 20
+          default: 6
+        conversation_id:
+          $ref: "#/components/schemas/UUID"
+          nullable: true
+        run_id:
+          $ref: "#/components/schemas/UUID"
+          nullable: true
+        roles:
+          type: array
+          items:
+            type: string
+    KnowledgeContext:
+      type: object
+      required: [context_id, content, score, citation]
+      properties:
+        context_id:
+          $ref: "#/components/schemas/UUID"
+        content:
+          type: string
+        score:
+          type: number
+          format: float
+        citation:
+          $ref: "#/components/schemas/Citation"
+        document_type:
+          $ref: "#/components/schemas/DocumentType"
+        tags:
+          type: array
+          items:
+            type: string
+    InternalContextRetrieveResponse:
+      type: object
+      required: [retrieval_id, query, contexts]
+      properties:
+        retrieval_id:
+          $ref: "#/components/schemas/UUID"
+        query:
+          type: string
+        contexts:
+          type: array
+          items:
+            $ref: "#/components/schemas/KnowledgeContext"
+        latency_ms:
+          type: integer
+          minimum: 0
+
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        version:
+          type: string
+        timestamp:
+          $ref: "#/components/schemas/Timestamp"
