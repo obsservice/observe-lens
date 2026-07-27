@@ -21,6 +21,6 @@ ResourceAlreadyExists:
           summary: Duplicate resource name
           value:
             code: RESOURCE_ALREADY_EXISTS
-            message: Incident integration with name "Grafana prod" already exists
+            message: Incident integration with name "Alertmanager prod" already exists
             request_id: req-1
             details: {}

@@ -6,12 +6,6 @@ incidents:
     operationId: listIncidents
     parameters: [{ $ref: ../components/parameters.yaml#/Page }, { $ref: ../components/parameters.yaml#/PageSize }, { $ref: ../components/parameters.yaml#/Keyword }, { name: severity, in: query, schema: { $ref: ../schemas/incident.yaml#/IncidentSeverity } }, { name: status, in: query, schema: { $ref: ../schemas/incident.yaml#/IncidentStatus } }, { name: source, in: query, schema: { type: string } }]
     responses: { '200': { description: Incident list, content: { application/json: { schema: { $ref: ../schemas/incident.yaml#/IncidentPage } } } } }
-  post:
-    tags: [Incident]
-    summary: Create incident
-    operationId: createIncident
-    requestBody: { required: true, content: { application/json: { schema: { $ref: ../schemas/incident.yaml#/IncidentCreateRequest } } } }
-    responses: { '201': { description: Created, content: { application/json: { schema: { $ref: ../schemas/incident.yaml#/Incident } } } }, '409': { $ref: ../components/responses.yaml#/Conflict } }
 incident:
   parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get:
@@ -55,7 +49,7 @@ integrations:
     tags: [Incident]
     summary: List incident integrations
     operationId: listIncidentIntegrations
-    parameters: [{ name: type, in: query, schema: { type: string, enum: [Webhook, AlertManager, Grafana, Prometheus, Datadog, Zabbix, Nagios, OpsGenie] }, description: Exact integration type filter }, { name: status, in: query, schema: { type: string, enum: [ENABLED, DISABLED] }, description: Exact integration status filter }, { name: name, in: query, schema: { type: string }, description: Fuzzy integration name filter }]
+    parameters: [{ name: type, in: query, schema: { type: string, enum: [Webhook, Alertmanager] }, description: Exact integration type filter }, { name: status, in: query, schema: { type: string, enum: [Enabled, Disabled] }, description: Exact integration status filter }, { name: name, in: query, schema: { type: string }, description: Fuzzy integration name filter }]
     responses: { '200': { description: Integrations, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/incident.yaml#/IncidentIntegration } } } } } }
   post:
     tags: [Incident]
@@ -77,6 +71,22 @@ integrationStatuses:
     summary: List incident integration statuses
     operationId: listIncidentIntegrationStatuses
     responses: { '200': { description: Integration statuses, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/common.yaml#/Option } } } } } }
+webhookIntegrationWebhook:
+  parameters: [{ $ref: ../components/parameters.yaml#/IntegrationId }]
+  post:
+    tags: [Incident]
+    summary: Receive generic webhook incident
+    operationId: receiveWebhookIncident
+    requestBody: { required: true, content: { application/json: { schema: { $ref: ../schemas/incident.yaml#/WebhookIncidentRequest } } } }
+    responses: { '201': { description: Created, content: { application/json: { schema: { $ref: ../schemas/incident.yaml#/Incident } } } }, '404': { $ref: ../components/responses.yaml#/NotFound } }
+alertmanagerIntegrationWebhook:
+  parameters: [{ $ref: ../components/parameters.yaml#/IntegrationId }]
+  post:
+    tags: [Incident]
+    summary: Receive Alertmanager webhook incident
+    operationId: receiveAlertmanagerIncident
+    requestBody: { required: true, content: { application/json: { schema: { $ref: ../schemas/incident.yaml#/AlertmanagerWebhookRequest } } } }
+    responses: { '201': { description: Created, content: { application/json: { schema: { $ref: ../schemas/incident.yaml#/Incident } } } }, '404': { $ref: ../components/responses.yaml#/NotFound } }
 integration:
   parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get:
@@ -104,6 +114,3 @@ severities:
 statuses:
   parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
   get: { tags: [Incident], summary: List incident statuses, operationId: listIncidentStatuses, responses: { '200': { description: Statuses, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/common.yaml#/Option } } } } } } }
-sources:
-  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
-  get: { tags: [Incident], summary: List incident sources, operationId: listIncidentSources, responses: { '200': { description: Sources, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/common.yaml#/Option } } } } } } }

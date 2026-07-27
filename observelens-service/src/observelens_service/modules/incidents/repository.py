@@ -11,13 +11,24 @@ class IncidentRepository:
         self._session = session
 
     async def list(
-        self, tenant_id: int, page: int, page_size: int, severity: str | None, status: str | None
+        self,
+        tenant_id: int,
+        page: int,
+        page_size: int,
+        severity: str | None,
+        status: str | None,
+        source: str | None,
+        name: str | None,
     ) -> tuple[list[IncidentModel], int]:
         filters = [IncidentModel.tenant_id == tenant_id, IncidentModel.delete_time.is_(None)]
         if severity:
             filters.append(IncidentModel.severity == severity)
         if status:
             filters.append(IncidentModel.status == status)
+        if source:
+            filters.append(IncidentModel.source == source)
+        if name:
+            filters.append(IncidentModel.title.ilike(f"%{name}%"))
         query: Select[tuple[IncidentModel]] = (
             select(IncidentModel).where(*filters).order_by(IncidentModel.update_time.desc())
         )
@@ -46,6 +57,25 @@ class IncidentRepository:
             select(IncidentIntegrationModel).where(
                 IncidentIntegrationModel.tenant_id == tenant_id,
                 IncidentIntegrationModel.id == integration_id,
+                IncidentIntegrationModel.delete_time.is_(None),
+            )
+        )
+        return result
+
+    async def get_integration_by_id(self, integration_id: int) -> IncidentIntegrationModel | None:
+        result = await self._session.scalar(
+            select(IncidentIntegrationModel).where(IncidentIntegrationModel.id == integration_id)
+        )
+        return result
+
+    async def get_integration_for_webhook(
+        self, integration_type: str, integration_id: int
+    ) -> IncidentIntegrationModel | None:
+        result = await self._session.scalar(
+            select(IncidentIntegrationModel).where(
+                IncidentIntegrationModel.id == integration_id,
+                IncidentIntegrationModel.type == integration_type,
+                IncidentIntegrationModel.status == "Enabled",
                 IncidentIntegrationModel.delete_time.is_(None),
             )
         )

@@ -4,7 +4,6 @@ import {
   AppShell,
   FilterInput,
   PageHeader,
-  SelectLike,
 } from '@/components/observe-lens/app-shell';
 import {
   DataTable,
@@ -18,11 +17,20 @@ import {
 import {
   createIncidentIntegration,
   deleteIncidentIntegration,
+  incidentQueryKeys,
   incidentIntegrationQueryKeys,
+  listIncidentSeverities,
+  listIncidentStatuses,
   listIncidentIntegrationStatuses,
   listIncidentIntegrationTypes,
+  listIncidents,
   listIncidentIntegrations,
+  openIncidentConversation,
+  transitionIncident,
+  updateIncident,
+  type Incident,
   type IncidentIntegration,
+  type UpdateIncidentRequest,
   type IncidentOption,
   updateIncidentIntegration,
 } from '@/lib/api/incidents';
@@ -64,6 +72,7 @@ import {
   Zap,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -101,124 +110,38 @@ function LinkButton({
 
 interface IncidentRow {
   assignee: string;
+  conversationId: number | null;
   createdAt: string;
+  description: string | null;
+  id: number;
+  incidentId: string;
   name: string;
-  severity: 'Critical' | 'Warning' | 'Info';
+  severity: string;
   source: string;
-  status: 'Acknowledged' | 'Investigating' | 'Open' | 'Resolved';
+  status: string;
   updatedAt: string;
 }
 
-const incidents: IncidentRow[] = [
-  {
-    assignee: 'sre-team',
-    createdAt: '2026-07-08 10:21:34',
-    name: 'Kafka Consumer Lag 持续增长',
-    severity: 'Critical',
-    source: 'AlertManager',
-    status: 'Investigating',
-    updatedAt: '2m ago',
-  },
-  {
-    assignee: 'lijing',
-    createdAt: '2026-07-08 09:58:11',
-    name: 'Broker CPU 使用率过高',
-    severity: 'Warning',
-    source: 'Grafana',
-    status: 'Open',
-    updatedAt: '23m ago',
-  },
-  {
-    assignee: 'wangwei',
-    createdAt: '2026-07-08 09:30:45',
-    name: 'Pod CrashLoopBackOff',
-    severity: 'Critical',
-    source: 'AlertManager',
-    status: 'Open',
-    updatedAt: '51m ago',
-  },
-  {
-    assignee: 'zhangsan',
-    createdAt: '2026-07-08 08:12:07',
-    name: 'Topic Unavailable',
-    severity: 'Critical',
-    source: 'AlertManager',
-    status: 'Open',
-    updatedAt: '2h ago',
-  },
-  {
-    assignee: 'lijing',
-    createdAt: '2026-07-08 07:45:22',
-    name: 'Disk 使用率超过阈值',
-    severity: 'Warning',
-    source: 'Grafana',
-    status: 'Acknowledged',
-    updatedAt: '3h ago',
-  },
-  {
-    assignee: 'sre-team',
-    createdAt: '2026-07-08 07:20:18',
-    name: 'API 错误率升高',
-    severity: 'Warning',
-    source: 'Webhook',
-    status: 'Open',
-    updatedAt: '3h ago',
-  },
-  {
-    assignee: 'wangwei',
-    createdAt: 'Yesterday 23:18',
-    name: 'Database 连接数耗尽',
-    severity: 'Critical',
-    source: 'AlertManager',
-    status: 'Resolved',
-    updatedAt: 'Yesterday 23:45',
-  },
-  {
-    assignee: 'zhangsan',
-    createdAt: 'Yesterday 22:10',
-    name: 'Redis 内存使用率过高',
-    severity: 'Warning',
-    source: 'Grafana',
-    status: 'Resolved',
-    updatedAt: 'Yesterday 22:35',
-  },
-  {
-    assignee: 'lijing',
-    createdAt: 'Yesterday 21:05',
-    name: 'Service 响应时间过高',
-    severity: 'Warning',
-    source: 'Webhook',
-    status: 'Resolved',
-    updatedAt: 'Yesterday 21:20',
-  },
-  {
-    assignee: 'sre-team',
-    createdAt: 'Yesterday 20:15',
-    name: 'Nginx 5xx 错误增多',
-    severity: 'Critical',
-    source: 'AlertManager',
-    status: 'Resolved',
-    updatedAt: 'Yesterday 20:40',
-  },
-];
-
 const severityTone: Record<IncidentRow['severity'], StatusTone> = {
   Critical: 'red',
-  Info: 'blue',
-  Warning: 'amber',
+  Error: 'amber',
+  Warn: 'amber',
 };
 
 const incidentStatusTone: Record<IncidentRow['status'], StatusTone> = {
   Acknowledged: 'violet',
+  Archived: 'slate',
+  Closed: 'slate',
   Investigating: 'blue',
   Open: 'blue',
+  Recovering: 'amber',
   Resolved: 'emerald',
 };
 
 const severityDotClassNames: Record<IncidentRow['severity'], string> = {
   Critical: 'bg-red-500',
-  Info: 'bg-blue-500',
-  Warning: 'bg-amber-500',
+  Error: 'bg-amber-500',
+  Warn: 'bg-amber-500',
 };
 
 const assigneeClassNames: Record<string, string> = {
@@ -229,121 +152,310 @@ const assigneeClassNames: Record<string, string> = {
 };
 
 const sourceClassNames: Record<string, string> = {
+  Alertmanager: 'bg-orange-500 text-white',
   AlertManager: 'bg-orange-500 text-white',
+  Datadog: 'bg-violet-600 text-white',
   Grafana: 'bg-orange-500 text-white',
+  Nagios: 'bg-slate-900 text-white',
+  Opsgenie: 'bg-blue-600 text-white',
+  Prometheus: 'bg-orange-500 text-white',
   Webhook: 'bg-slate-100 text-slate-700',
+  Zabbix: 'bg-red-600 text-white',
 };
 
-const incidentColumns: DataColumn<IncidentRow>[] = [
-  {
-    className: 'w-[25%]',
-    header: 'Title',
-    render: (row) => (
-      <div>
-        <p className="font-semibold text-slate-950">{row.name}</p>
-      </div>
-    ),
-  },
-  {
-    className: 'w-[12%]',
-    header: 'Severity',
-    render: (row) => (
-      <StatusBadge tone={severityTone[row.severity]}>
-        <span
-          aria-hidden="true"
-          className={cn(
-            'mr-1.5 size-1.5 rounded-full',
-            severityDotClassNames[row.severity],
-          )}
-        />
-        {row.severity}
-      </StatusBadge>
-    ),
-  },
-  {
-    className: 'w-[13%]',
-    header: 'Status',
-    render: (row) => (
-      <StatusBadge tone={incidentStatusTone[row.status]}>
-        {row.status}
-      </StatusBadge>
-    ),
-  },
-  {
-    className: 'w-[13%]',
-    header: 'Source',
-    render: (row) => (
-      <span className="inline-flex items-center gap-2">
-        <span
-          className={cn(
-            'grid size-5 place-items-center rounded-full text-[10px] font-semibold',
-            sourceClassNames[row.source],
-          )}
-        >
-          !
-        </span>
-        {row.source}
-      </span>
-    ),
-  },
-  {
-    className: 'w-[14%]',
-    header: 'Start Time',
-    render: (row) => row.createdAt,
-  },
-  {
-    className: 'w-[11%]',
-    header: 'Updated At',
-    render: (row) => row.updatedAt,
-  },
-  {
-    className: 'w-[13%]',
-    header: 'Assignee',
-    render: (row) => (
-      <span className="inline-flex items-center gap-2">
-        <span
-          className={cn(
-            'grid size-6 place-items-center rounded-full text-xs font-semibold text-white',
-            assigneeClassNames[row.assignee] ?? 'bg-slate-500',
-          )}
-        >
-          {row.assignee.slice(0, 1).toUpperCase()}
-        </span>
-        {row.assignee}
-      </span>
-    ),
-  },
-  {
-    className: 'w-[12%]',
-    header: 'Actions',
-    render: (row) => (
-      <div className="flex items-center gap-2">
-        <LinkButton
-          ariaLabel={`Open ${row.name} chat`}
-          className="h-8 px-2.5"
-          href="/"
-        >
-          <MessageCircle aria-hidden="true" size={15} />
-          Ask AI
-        </LinkButton>
-        <ActionButton
-          aria-label={`More actions for ${row.name}`}
-          className="size-8 px-0 text-slate-500 hover:text-slate-900"
-          message={`${row.name} actions opened`}
-          size="sm"
-          variant="ghost"
-        >
-          <MoreVertical aria-hidden="true" size={15} />
-        </ActionButton>
-      </div>
-    ),
-  },
-];
 
-function IncidentPagination(): ReactNode {
+
+const NEXT_STATUSES: Record<string, string[]> = {
+  Open: ['Acknowledged', 'Investigating'],
+  Acknowledged: ['Investigating'],
+  Investigating: ['Recovering'],
+  Recovering: ['Resolved'],
+  Resolved: ['Closed'],
+  Closed: [],
+  Archived: [],
+};
+
+function IncidentStatusMenu({
+  incident,
+  isPending,
+  onStatusChange,
+}: {
+  incident: IncidentRow;
+  isPending: boolean;
+  onStatusChange: (status: string, assignee?: string) => void;
+}): ReactNode {
+  const [isOpen, setIsOpen] = useState(false);
+  const [assignee, setAssignee] = useState('');
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
+  const available = NEXT_STATUSES[incident.status] ?? [];
+
+  const close = () => {
+    setIsOpen(false);
+    setPendingStatus(null);
+    setAssignee('');
+  };
+
+  if (available.length === 0) {
+    return (
+      <ActionButton
+        aria-label={`More actions for ${incident.name}`}
+        className="size-8 px-0 text-slate-500 hover:text-slate-900"
+        message={`${incident.name} actions opened`}
+        size="sm"
+        variant="ghost"
+      >
+        <MoreVertical aria-hidden="true" size={15} />
+      </ActionButton>
+    );
+  }
+
+  const handleSelect = (status: string) => {
+    if (status === 'Acknowledged') {
+      setPendingStatus(status);
+      return;
+    }
+    close();
+    onStatusChange(status);
+  };
+
+  const handleConfirm = () => {
+    if (!assignee.trim()) return;
+    close();
+    onStatusChange('Acknowledged', assignee.trim());
+  };
+
+  return (
+    <div className="relative">
+      <ActionButton
+        aria-label={`More actions for ${incident.name}`}
+        className="size-8 px-0 text-slate-500 hover:text-slate-900"
+        message={`${incident.name} actions opened`}
+        size="sm"
+        variant="ghost"
+        onClick={() => setIsOpen((v) => !v)}
+      >
+        <MoreVertical aria-hidden="true" size={15} />
+      </ActionButton>
+      {isOpen ? (
+        <>
+          <div className="fixed inset-0 z-30" onClick={close} />
+          <div className="absolute right-0 top-9 z-40 w-48 overflow-hidden rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+            <div className="flex items-center justify-between px-3 py-1.5">
+              <span className="text-[11px] font-semibold uppercase text-slate-400">
+                {pendingStatus === 'Acknowledged' ? 'Assign to' : 'Change status'}
+              </span>
+              <span className="text-[11px] font-medium text-slate-400">
+                {incident.status}
+              </span>
+            </div>
+            {pendingStatus === 'Acknowledged' ? (
+              <div className="px-3 py-2">
+                <input
+                  autoFocus
+                  className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                  disabled={isPending}
+                  onChange={(e) => setAssignee(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleConfirm();
+                    if (e.key === 'Escape') close();
+                  }}
+                  placeholder="Enter assignee name"
+                  type="text"
+                  value={assignee}
+                />
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    className="flex-1 rounded-md bg-blue-600 px-2 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
+                    disabled={isPending || !assignee.trim()}
+                    onClick={handleConfirm}
+                    type="button"
+                  >
+                    Confirm
+                  </button>
+                  <button
+                    className="rounded-md px-2 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100"
+                    onClick={() => {
+                      setPendingStatus(null);
+                      setAssignee('');
+                    }}
+                    type="button"
+                  >
+                    Back
+                  </button>
+                </div>
+              </div>
+            ) : (
+              available.map((status) => (
+                <button
+                  key={status}
+                  className={cn(
+                    'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition',
+                    isPending
+                      ? 'text-slate-400'
+                      : 'text-slate-700 hover:bg-blue-50 hover:text-blue-700',
+                  )}
+                  disabled={isPending}
+                  onClick={() => handleSelect(status)}
+                  type="button"
+                >
+                  <StatusBadge tone={incidentStatusTone[status] ?? 'slate'}>
+                    {status}
+                  </StatusBadge>
+                  {status === 'Acknowledged' ? (
+                    <span className="ml-auto text-[11px] text-slate-400">
+                      assign
+                    </span>
+                  ) : null}
+                </button>
+              ))
+            )}
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+
+function getIncidentColumns({
+  onOpenConversation,
+  onStatusChange,
+  openingIncidentId,
+  statusChangingIncidentId,
+}: {
+  onOpenConversation: (row: IncidentRow) => void;
+  onStatusChange: (row: IncidentRow, status: string, assignee?: string) => void;
+  openingIncidentId: number | null;
+  statusChangingIncidentId: number | null;
+}): DataColumn<IncidentRow>[] {
+  return [
+    {
+      className: 'w-[28%] truncate',
+      header: 'Title',
+      render: (row) => (
+        <div className="truncate" title={`${row.name} (${row.incidentId})`}>
+          <p className="truncate font-semibold text-slate-950">{row.name}</p>
+          <p className="mt-1 truncate text-xs text-slate-500">{row.incidentId}</p>
+        </div>
+      ),
+    },
+    {
+      className: 'w-[8%] truncate',
+      header: 'Severity',
+      render: (row) => (
+        <span className="truncate" title={row.severity}>
+          <StatusBadge tone={severityTone[row.severity] ?? 'slate'}>
+            <span
+              aria-hidden="true"
+              className={cn(
+                'mr-1.5 size-1.5 shrink-0 rounded-full',
+                severityDotClassNames[row.severity] ?? 'bg-slate-400',
+              )}
+            />
+            {row.severity}
+          </StatusBadge>
+        </span>
+      ),
+    },
+    {
+      className: 'w-[9%] truncate pr-2',
+      header: 'Status',
+      render: (row) => (
+        <span className="truncate" title={row.status}>
+          <StatusBadge tone={incidentStatusTone[row.status] ?? 'slate'}>
+            {row.status}
+          </StatusBadge>
+        </span>
+      ),
+    },
+    {
+      className: 'w-[9%] truncate pl-2',
+      header: 'Source',
+      render: (row) => (
+        <span className="inline-flex items-center gap-2 truncate" title={row.source}>
+          <span
+            className={cn(
+              'grid size-5 shrink-0 place-items-center rounded-full text-[10px] font-semibold',
+              sourceClassNames[row.source] ?? 'bg-slate-100 text-slate-700',
+            )}
+          >
+            !
+          </span>
+          <span className="truncate">{row.source}</span>
+        </span>
+      ),
+    },
+    {
+      className: 'w-[13%] truncate',
+      header: 'Start Time',
+      render: (row) => (
+        <span className="truncate" title={row.createdAt}>{row.createdAt}</span>
+      ),
+    },
+    {
+      className: 'w-[11%] truncate pl-2',
+      header: 'Updated At',
+      render: (row) => (
+        <span className="truncate" title={row.updatedAt}>{row.updatedAt}</span>
+      ),
+    },
+    {
+      className: 'w-[10%] truncate',
+      header: 'Assignee',
+      render: (row) => (
+        <span className="inline-flex items-center gap-2 truncate" title={row.assignee}>
+          <span
+            className={cn(
+              'grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold text-white',
+              assigneeClassNames[row.assignee] ?? 'bg-slate-500',
+            )}
+          >
+            {row.assignee.slice(0, 1).toUpperCase()}
+          </span>
+          <span className="truncate">{row.assignee}</span>
+        </span>
+      ),
+    },
+    {
+      className: 'w-[12%]',
+      header: 'Actions',
+      render: (row) => (
+        <div className="flex items-center gap-2">
+          <button
+            aria-label={`Open ${row.name} chat`}
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-blue-600 px-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={openingIncidentId === row.id}
+            onClick={() => onOpenConversation(row)}
+            type="button"
+          >
+            <MessageCircle aria-hidden="true" size={15} />
+            Ask AI
+          </button>
+          <IncidentStatusMenu
+            incident={row}
+            isPending={statusChangingIncidentId === row.id}
+            onStatusChange={(status, assignee) => onStatusChange(row, status, assignee)}
+          />
+        </div>
+      ),
+    },
+  ];
+}
+
+function IncidentPagination({
+  count,
+  total,
+}: {
+  count: number;
+  total: number;
+}): ReactNode {
+  const end = count === 0 ? 0 : count;
+
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-5 py-4 text-sm text-slate-600">
-      <span>Showing 1 to 10 of 24 incidents</span>
+      <span>
+        Showing {count === 0 ? 0 : 1} to {end} of {total} incidents
+      </span>
       <div className="flex items-center gap-2">
         <ActionButton
           aria-label="Previous incident page"
@@ -2640,7 +2752,119 @@ function SearchButton({
   );
 }
 
+function toIncidentRow(incident: Incident): IncidentRow {
+  return {
+    assignee: incident.external_metadata?.assignee ?? 'sre-team',
+    conversationId: incident.conversation_id,
+    createdAt: incident.started_at
+      ? formatIntegrationDateTime(incident.started_at)
+      : formatIntegrationDateTime(incident.created_at),
+    description: incident.description,
+    id: incident.id,
+    incidentId: incident.incident_id,
+    name: incident.name,
+    severity: incident.severity,
+    source: incident.source ?? 'Webhook',
+    status: incident.status,
+    updatedAt: formatIntegrationDateTime(incident.updated_at),
+  };
+}
+
 export function IncidentsPage(): ReactNode {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const [draftIncidentFilters, setDraftIncidentFilters] = useState({
+    keyword: '',
+    severity: '',
+    source: '',
+    status: '',
+  });
+  const [appliedIncidentFilters, setAppliedIncidentFilters] = useState({
+    keyword: '',
+    severity: '',
+    source: '',
+    status: '',
+  });
+  const incidentListParams = {
+    keyword: appliedIncidentFilters.keyword,
+    name: appliedIncidentFilters.keyword,
+    page: 1,
+    page_size: 20,
+    severity: appliedIncidentFilters.severity,
+    source: appliedIncidentFilters.source,
+    status: appliedIncidentFilters.status,
+  };
+  const {
+    data: incidentPage,
+    error,
+    isError,
+    isFetching,
+    isPending,
+    refetch,
+  } = useQuery({
+    queryFn: () => listIncidents(incidentListParams),
+    queryKey: incidentQueryKeys.list(incidentListParams),
+  });
+  const { data: incidentSeverityOptions = [] } = useQuery({
+    queryFn: listIncidentSeverities,
+    queryKey: incidentQueryKeys.severities(),
+  });
+  const { data: incidentStatusOptions = [] } = useQuery({
+    queryFn: listIncidentStatuses,
+    queryKey: incidentQueryKeys.statuses(),
+  });
+  const { data: incidentSourceIntegrations = [] } = useQuery({
+    queryFn: () => listIncidentIntegrations(),
+    queryKey: incidentIntegrationQueryKeys.list(),
+  });
+  const incidentSourceOptions = incidentSourceIntegrations.map(
+    (integration) => ({
+      label: integration.name,
+      value: integration.name,
+    }),
+  );
+  const openConversationMutation = useMutation({
+    mutationFn: openIncidentConversation,
+    onSuccess: async (response) => {
+      await queryClient.invalidateQueries({
+        queryKey: incidentQueryKeys.all,
+      });
+      router.push(`/?conversationId=${response.conversation_id}`);
+    },
+  });
+  const transitionIncidentMutation = useMutation({
+    mutationFn: ({
+      incidentId,
+      status,
+      assignee,
+    }: {
+      incidentId: number;
+      status: string;
+      assignee?: string;
+    }) => transitionIncident(incidentId, { status, assignee }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: incidentQueryKeys.all,
+      });
+    },
+  });
+  const incidentRows = (incidentPage?.items ?? []).map(toIncidentRow);
+  const incidentColumns = getIncidentColumns({
+    onOpenConversation: (row) => openConversationMutation.mutate(row.id),
+    onStatusChange: (row, status, assignee) =>
+      transitionIncidentMutation.mutate({
+        incidentId: row.id,
+        status,
+        assignee,
+      }),
+    openingIncidentId: openConversationMutation.isPending
+      ? (openConversationMutation.variables ?? null)
+      : null,
+    statusChangingIncidentId: transitionIncidentMutation.isPending
+      ? transitionIncidentMutation.variables?.incidentId ?? null
+      : null,
+  });
+
   return (
     <AppShell activeItem="Incidents" activeSection="incidents">
       <PageHeader
@@ -2665,22 +2889,104 @@ export function IncidentsPage(): ReactNode {
         </div>
         <Toolbar>
           <div className="flex flex-wrap gap-4">
-            <FilterInput placeholder="Search incidents..." />
-            <SelectLike label="Severity" />
-            <SelectLike label="Status" />
-            <SelectLike label="Source" />
-            <SelectLike label="Last 24 hours" />
+            <FilterInput
+              onChange={(keyword) =>
+                setDraftIncidentFilters((filters) => ({
+                  ...filters,
+                  keyword,
+                }))
+              }
+              placeholder="Search incidents..."
+              value={draftIncidentFilters.keyword}
+            />
+            <LabeledFilterSelect
+              label="Severity"
+              onChange={(severity) =>
+                setDraftIncidentFilters((filters) => ({
+                  ...filters,
+                  severity,
+                }))
+              }
+              options={incidentSeverityOptions}
+              selectedValue={draftIncidentFilters.severity}
+              value="All"
+            />
+            <LabeledFilterSelect
+              label="Status"
+              onChange={(status) =>
+                setDraftIncidentFilters((filters) => ({
+                  ...filters,
+                  status,
+                }))
+              }
+              options={incidentStatusOptions}
+              selectedValue={draftIncidentFilters.status}
+              value="All"
+            />
+            <LabeledFilterSelect
+              label="Source"
+              onChange={(source) =>
+                setDraftIncidentFilters((filters) => ({
+                  ...filters,
+                  source,
+                }))
+              }
+              options={incidentSourceOptions}
+              selectedValue={draftIncidentFilters.source}
+              value="All"
+            />
           </div>
-          <SearchButton />
+          <SearchButton
+            message={
+              isFetching
+                ? 'Searching incidents...'
+                : 'Incidents search completed'
+            }
+            onSearch={() => {
+              const nextFilters = {
+                keyword: draftIncidentFilters.keyword.trim(),
+                name: draftIncidentFilters.keyword.trim(),
+                severity: draftIncidentFilters.severity,
+                source: draftIncidentFilters.source,
+                status: draftIncidentFilters.status,
+              };
+
+              setAppliedIncidentFilters(nextFilters);
+              if (
+                nextFilters.keyword === appliedIncidentFilters.keyword &&
+                nextFilters.severity === appliedIncidentFilters.severity &&
+                nextFilters.source === appliedIncidentFilters.source &&
+                nextFilters.status === appliedIncidentFilters.status
+              ) {
+                void refetch();
+              }
+            }}
+          />
         </Toolbar>
         <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
-          <DataTable
-            columns={incidentColumns}
-            containerClassName="rounded-none border-0"
-            getRowKey={(row) => row.name}
-            rows={incidents}
+          {isPending ? (
+            <IntegrationTableState>Loading incidents...</IntegrationTableState>
+          ) : null}
+          {isError ? (
+            <IntegrationTableState tone="danger">
+              {error.message || 'Failed to load incidents.'}
+            </IntegrationTableState>
+          ) : null}
+          {!isPending && !isError && incidentRows.length === 0 ? (
+            <IntegrationTableState>No incidents found.</IntegrationTableState>
+          ) : null}
+          {!isPending && !isError && incidentRows.length > 0 ? (
+            <DataTable
+              columns={incidentColumns}
+              containerClassName="rounded-none border-0"
+              getRowKey={(row) => String(row.id)}
+              rows={incidentRows}
+            />
+          ) : null}
+          <IncidentPagination
+            count={incidentRows.length}
+            total={incidentPage?.total ?? 0}
           />
-          <IncidentPagination />
         </section>
       </div>
     </AppShell>

@@ -129,9 +129,11 @@ IntegrationId:
   name: integration_id
   in: path
   required: true
-  description: Integration ID.
+  description: 8-digit integration ID.
   schema:
-    $ref: ../schemas/common.yaml#/UUID
+    type: integer
+    minimum: 10000000
+    maximum: 99999999
 
 InspectionId:
   name: inspection_id

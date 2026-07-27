@@ -27,6 +27,11 @@ class ResourceAlreadyExistsError(DomainError):
         super().__init__("RESOURCE_ALREADY_EXISTS", message, 409)
 
 
+class InvalidRequestError(DomainError):
+    def __init__(self, message: str) -> None:
+        super().__init__("INVALID_REQUEST", message, 400)
+
+
 class DependencyUnavailableError(DomainError):
     def __init__(self, dependency: str) -> None:
         super().__init__("DEPENDENCY_UNAVAILABLE", f"{dependency} is unavailable", 503)

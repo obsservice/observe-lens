@@ -148,6 +148,12 @@ paths:
   /incidents/integrations/statuses:
     $ref: "./paths/incidents.yaml#/integrationStatuses"
 
+  /incidents/integrations/Webhook/{integration_id}/webhook:
+    $ref: "./paths/incidents.yaml#/webhookIntegrationWebhook"
+
+  /incidents/integrations/Alertmanager/{integration_id}/webhook:
+    $ref: "./paths/incidents.yaml#/alertmanagerIntegrationWebhook"
+
   /incidents/integrations/{integration_id}:
     $ref: "./paths/incidents.yaml#/integration"
 
@@ -157,9 +163,6 @@ paths:
 
   /incidents/statuses:
     $ref: "./paths/incidents.yaml#/statuses"
-
-  /incidents/sources:
-    $ref: "./paths/incidents.yaml#/sources"
 
   ##############################################################
   ## Inspection

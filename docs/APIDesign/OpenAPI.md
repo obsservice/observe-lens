@@ -66,7 +66,6 @@ GET    /api/v1/observations/{observation_id}
 
 ```
 GET    /api/v1/incidents
-POST   /api/v1/incidents
 GET    /api/v1/incidents/{incident_id}
 PATCH  /api/v1/incidents/{incident_id}
 DELETE /api/v1/incidents/{incident_id}
@@ -76,7 +75,6 @@ POST   /api/v1/incidents/{incident_id}/open-conversation
 
 GET    /api/v1/incidents/severities
 GET    /api/v1/incidents/statuses
-GET    /api/v1/incidents/sources
 ```
 
 ## 7. Incident Integrations
@@ -84,10 +82,16 @@ GET    /api/v1/incidents/sources
 ```
 GET    /api/v1/incidents/integrations
 POST   /api/v1/incidents/integrations
+GET    /api/v1/incidents/integrations/types
+GET    /api/v1/incidents/integrations/statuses
+POST   /api/v1/incidents/integrations/Webhook/{integration_id}/webhook
+POST   /api/v1/incidents/integrations/Alertmanager/{integration_id}/webhook
 GET    /api/v1/incidents/integrations/{integration_id}
 PATCH  /api/v1/incidents/integrations/{integration_id}
 DELETE /api/v1/incidents/integrations/{integration_id}
 ```
+
+`integration_id` 为 8 位数字。
 
 ## 8. Inspections
 

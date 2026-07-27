@@ -1,10 +1,10 @@
-IncidentSeverity: { type: string, enum: [critical, warning, info] }
-IncidentStatus: { type: string, enum: [open, investigating, resolved, archived] }
+IncidentSeverity: { type: string, enum: [Critical, Error, Warn] }
+IncidentStatus: { type: string, enum: [Open, Acknowledged, Investigating, Recovering, Resolved, Closed, Archived] }
 Incident:
   type: object
   required: [id, name, severity, status, source, created_at, updated_at]
   properties:
-    id: { $ref: common.yaml#/UUID }
+    id: { type: integer, minimum: 10000000, maximum: 99999999 }
     name: { type: string }
     description: { type: string, nullable: true }
     severity: { $ref: '#/IncidentSeverity' }
@@ -15,17 +15,35 @@ Incident:
     resolved_at: { $ref: common.yaml#/Timestamp, nullable: true }
     created_at: { $ref: common.yaml#/Timestamp }
     updated_at: { $ref: common.yaml#/Timestamp }
-IncidentCreateRequest:
+WebhookIncidentRequest:
   type: object
-  required: [name, severity, source]
+  required: [title]
   properties:
-    name: { type: string, maxLength: 200 }
+    title: { type: string, maxLength: 256 }
     description: { type: string }
-    severity: { $ref: '#/IncidentSeverity' }
-    source: { type: string }
-    labels: { type: object, additionalProperties: { type: string } }
+    severity: { $ref: '#/IncidentSeverity', default: Warn }
+    source: { type: string, nullable: true, description: Optional. Defaults to integration name when empty; when provided, it must match the integration name resolved by integration_id. }
     started_at: { $ref: common.yaml#/Timestamp }
-    idempotency_key: { $ref: common.yaml#/IdempotencyKey }
+    labels: { type: object, additionalProperties: { type: string } }
+AlertmanagerAlert:
+  type: object
+  properties:
+    status: { type: string }
+    labels: { type: object, additionalProperties: { type: string } }
+    annotations: { type: object, additionalProperties: { type: string } }
+    startsAt: { $ref: common.yaml#/Timestamp }
+    endsAt: { $ref: common.yaml#/Timestamp }
+AlertmanagerWebhookRequest:
+  type: object
+  properties:
+    receiver: { type: string }
+    status: { type: string }
+    source: { type: string, nullable: true, description: Optional. Defaults to integration name when empty; when provided, it must match the integration name resolved by integration_id. }
+    alerts: { type: array, items: { $ref: '#/AlertmanagerAlert' } }
+    groupLabels: { type: object, additionalProperties: { type: string } }
+    commonLabels: { type: object, additionalProperties: { type: string } }
+    commonAnnotations: { type: object, additionalProperties: { type: string } }
+    externalURL: { type: string }
 IncidentUpdateRequest:
   type: object
   minProperties: 1
@@ -42,9 +60,9 @@ IncidentIntegration:
   properties:
     id: { $ref: common.yaml#/UUID }
     name: { type: string }
-    type: { type: string, enum: [Webhook, AlertManager, Grafana, Prometheus, Datadog, Zabbix, Nagios, OpsGenie] }
-    status: { type: string, enum: [ENABLED, DISABLED] }
-    webhook_url: { type: string, format: uri }
+    type: { type: string, enum: [Webhook, Alertmanager] }
+    status: { type: string, enum: [Enabled, Disabled] }
+    webhook_url: { type: string, example: /api/v1/incidents/integrations/Webhook/12345678/webhook }
     token: { type: string, description: Plaintext integration token }
     token_hint: { type: string, description: Masked token retained for compatibility }
     created_at: { $ref: common.yaml#/Timestamp }
@@ -54,12 +72,12 @@ IntegrationCreateRequest:
   required: [name]
   properties:
     name: { type: string }
-    type: { type: string, enum: [Webhook, AlertManager, Grafana, Prometheus, Datadog, Zabbix, Nagios, OpsGenie], default: Webhook }
-    status: { type: string, enum: [ENABLED, DISABLED], default: ENABLED }
+    type: { type: string, enum: [Webhook, Alertmanager], default: Webhook }
+    status: { type: string, enum: [Enabled, Disabled], default: Enabled }
 IntegrationUpdateRequest:
   type: object
   minProperties: 1
   properties:
     name: { type: string }
-    type: { type: string, enum: [Webhook, AlertManager, Grafana, Prometheus, Datadog, Zabbix, Nagios, OpsGenie] }
-    status: { type: string, enum: [ENABLED, DISABLED] }
+    type: { type: string, enum: [Webhook, Alertmanager] }
+    status: { type: string, enum: [Enabled, Disabled] }
