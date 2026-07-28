@@ -46,7 +46,16 @@ tags:
     description: Observability entities
 
   - name: Knowledge
-    description: Knowledge management
+    description: |
+      Knowledge requests are proxied to observelens-knowledge-base.
+
+      observelens-service only performs authentication, request context
+      validation and reverse proxy forwarding for `/api/v1/knowledge/**`.
+      For concrete Knowledge API request and response contracts, see
+      `openapi/observelens-knowledge-base/openapi.yaml`.
+    externalDocs:
+      description: ObserveLens Knowledge Base OpenAPI
+      url: ../observelens-knowledge-base/openapi.yaml
 
   - name: Model
     description: LLM model management
@@ -215,23 +224,8 @@ paths:
   ## Knowledge
   ##############################################################
 
-  /knowledge/files:
-    $ref: "./paths/knowledge.yaml#/files"
-
-  /knowledge/files/{file_id}:
-    $ref: "./paths/knowledge.yaml#/file"
-
-  /knowledge/files/{file_id}/status:
-    $ref: "./paths/knowledge.yaml#/status"
-
-  /knowledge/files/{file_id}/reindex:
-    $ref: "./paths/knowledge.yaml#/reindex"
-
-  /knowledge/file-types:
-    $ref: "./paths/knowledge.yaml#/fileTypes"
-
-  /knowledge/index-statuses:
-    $ref: "./paths/knowledge.yaml#/indexStatuses"
+  /knowledge/{path}:
+    $ref: "./paths/knowledge.yaml#/proxyPath"
 
   ##############################################################
   ## Models
@@ -327,9 +321,6 @@ components:
 
     Entity:
       $ref: "./schemas/entity.yaml#/Entity"
-
-    KnowledgeFile:
-      $ref: "./schemas/knowledge.yaml#/KnowledgeFile"
 
     Model:
       $ref: "./schemas/model.yaml#/Model"

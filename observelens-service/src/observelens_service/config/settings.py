@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     agent_base_url: HttpUrl
     catalog_base_url: HttpUrl | None = None
     catalog_timeout_seconds: float = 10.0
-    knowledge_base_url: HttpUrl | None = None
+    knowledge_base_url: HttpUrl = "http://localhost:3085"  # type: ignore[assignment]
     knowledge_base_timeout_seconds: float = 30.0
     agent_timeout_seconds: float = 30.0
     cors_allowed_origins: str = "http://localhost:3080,http://127.0.0.1:3080"

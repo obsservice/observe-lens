@@ -10,4 +10,4 @@ uv sync
 uv run uvicorn observelens_knowledge_base.main:app --host 0.0.0.0 --port 3085
 ```
 
-The API is mounted at `/api/v1`.
+The API is mounted at `/api/v1/knowledge`.

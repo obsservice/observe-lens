@@ -32,7 +32,7 @@ security:
   - bearerAuth: []
 
 paths:
-  /knowledge-bases:
+  /knowledge/knowledge-bases:
     parameters:
       - $ref: "#/components/parameters/TenantId"
       - $ref: "#/components/parameters/UserId"
@@ -75,7 +75,7 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
-  /knowledge-bases/{knowledge_base_id}:
+  /knowledge/knowledge-bases/{knowledge_base_id}:
     parameters:
       - $ref: "#/components/parameters/TenantId"
       - $ref: "#/components/parameters/UserId"
@@ -123,7 +123,7 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
-  /knowledge-bases/{knowledge_base_id}/documents:
+  /knowledge/knowledge-bases/{knowledge_base_id}/documents:
     parameters:
       - $ref: "#/components/parameters/TenantId"
       - $ref: "#/components/parameters/UserId"
@@ -169,7 +169,7 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
-  /documents/{document_id}:
+  /knowledge/documents/{document_id}:
     parameters:
       - $ref: "#/components/parameters/TenantId"
       - $ref: "#/components/parameters/UserId"
@@ -217,7 +217,7 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
-  /documents/{document_id}/versions:
+  /knowledge/documents/{document_id}/versions:
     parameters:
       - $ref: "#/components/parameters/TenantId"
       - $ref: "#/components/parameters/UserId"
@@ -258,7 +258,7 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
-  /documents/{document_id}/content:
+  /knowledge/documents/{document_id}/content:
     parameters:
       - $ref: "#/components/parameters/TenantId"
       - $ref: "#/components/parameters/UserId"
@@ -286,7 +286,7 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
-  /documents/{document_id}/reindex:
+  /knowledge/documents/{document_id}/reindex:
     parameters:
       - $ref: "#/components/parameters/TenantId"
       - $ref: "#/components/parameters/UserId"
@@ -306,7 +306,7 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
-  /retrieval/search:
+  /knowledge/retrieval/search:
     parameters:
       - $ref: "#/components/parameters/TenantId"
       - $ref: "#/components/parameters/UserId"
@@ -331,7 +331,7 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
-  /retrieval/feedback:
+  /knowledge/retrieval/feedback:
     parameters:
       - $ref: "#/components/parameters/TenantId"
       - $ref: "#/components/parameters/UserId"
@@ -356,7 +356,7 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
-  /internal/v1/context/retrieve:
+  /knowledge/internal/v1/context/retrieve:
     parameters:
       - $ref: "#/components/parameters/TenantId"
       - $ref: "#/components/parameters/UserId"
@@ -384,7 +384,7 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
-  /index-tasks/{task_id}:
+  /knowledge/index-tasks/{task_id}:
     parameters:
       - $ref: "#/components/parameters/TenantId"
       - $ref: "#/components/parameters/UserId"
@@ -404,7 +404,7 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
-  /index-tasks/{task_id}/retry:
+  /knowledge/index-tasks/{task_id}/retry:
     parameters:
       - $ref: "#/components/parameters/TenantId"
       - $ref: "#/components/parameters/UserId"
@@ -424,7 +424,7 @@ paths:
         default:
           $ref: "#/components/responses/Error"
 
-  /system/health:
+  /knowledge/system/health:
     get:
       tags: [System]
       summary: Health check
@@ -1009,7 +1009,7 @@ components:
           nullable: true
         source_url:
           type: string
-          example: /api/v1/documents/00000000-0000-0000-0000-000000000001/content
+          example: /api/v1/knowledge/documents/00000000-0000-0000-0000-000000000001/content
         snippet:
           type: string
           nullable: true

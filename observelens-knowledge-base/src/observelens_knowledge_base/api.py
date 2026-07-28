@@ -6,7 +6,7 @@ from observelens_knowledge_base.knowledge_bases.router import router as knowledg
 from observelens_knowledge_base.retrieval.router import router as retrieval_router
 from observelens_knowledge_base.system.router import router as system_router
 
-api_router = APIRouter(prefix="/api/v1")
+api_router = APIRouter(prefix="/api/v1/knowledge")
 api_router.include_router(knowledge_bases_router)
 api_router.include_router(documents_router)
 api_router.include_router(retrieval_router)

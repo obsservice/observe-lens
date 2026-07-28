@@ -191,7 +191,7 @@ class RetrievalService:
                 document_version=version.version if version else 1,
                 section=chunk.title,
                 page_number=chunk.page_number,
-                source_url=f"/api/v1/documents/{chunk.document_id}/content",
+                source_url=f"/api/v1/knowledge/documents/{chunk.document_id}/content",
                 snippet=chunk.content[:300],
             ),
             metadata=RetrievalResultMetadata(

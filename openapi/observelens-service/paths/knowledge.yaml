@@ -1,57 +1,45 @@
-files:
-  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
-  get:
-    tags: [Knowledge]
-    summary: List knowledge files
-    operationId: listKnowledgeFiles
-    parameters: [{ $ref: ../components/parameters.yaml#/Page }, { $ref: ../components/parameters.yaml#/PageSize }, { $ref: ../components/parameters.yaml#/Keyword }, { name: file_type, in: query, schema: { type: string } }]
-    responses: { '200': { description: Knowledge files, content: { application/json: { schema: { $ref: ../schemas/knowledge.yaml#/KnowledgeFilePage } } } } }
-  post:
-    tags: [Knowledge]
-    summary: Upload knowledge file
-    operationId: uploadKnowledgeFile
-    requestBody:
+proxyPath:
+  summary: Knowledge Base reverse proxy
+  description: |
+    Catch-all reverse proxy for observelens-knowledge-base.
+
+    This gateway path forwards `/api/v1/knowledge/**` requests to
+    observelens-knowledge-base and does not define Knowledge business
+    request/response schemas in observelens-service.
+
+    Concrete Knowledge API contracts are maintained by:
+    `openapi/observelens-knowledge-base/openapi.yaml`.
+  x-observelens-proxy: true
+  x-observelens-upstream-service: observelens-knowledge-base
+  x-observelens-upstream-openapi: ../observelens-knowledge-base/openapi.yaml
+  x-observelens-supported-methods:
+    - GET
+    - POST
+    - PUT
+    - PATCH
+    - DELETE
+    - OPTIONS
+    - HEAD
+  parameters:
+    - $ref: ../components/parameters.yaml#/TenantId
+    - $ref: ../components/parameters.yaml#/UserId
+    - $ref: ../components/parameters.yaml#/RequestId
+    - name: path
+      in: path
       required: true
-      content:
-        multipart/form-data:
-          schema:
-            type: object
-            required: [file]
-            properties: { file: { type: string, format: binary } }
-    responses: { '201': { description: Uploaded and queued for indexing, content: { application/json: { schema: { $ref: ../schemas/knowledge.yaml#/KnowledgeFile } } } } }
-file:
-  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
+      description: Knowledge Base API path suffix to proxy.
+      schema:
+        type: string
   get:
     tags: [Knowledge]
-    summary: Get knowledge file metadata
-    operationId: getKnowledgeFile
-    parameters: [{ $ref: ../components/parameters.yaml#/FileId }]
-    responses: { '200': { description: File metadata, content: { application/json: { schema: { $ref: ../schemas/knowledge.yaml#/KnowledgeFile } } } } }
-  delete:
-    tags: [Knowledge]
-    summary: Delete knowledge file
-    operationId: deleteKnowledgeFile
-    parameters: [{ $ref: ../components/parameters.yaml#/FileId }]
-    responses: { '204': { description: Deleted } }
-status:
-  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
-  get:
-    tags: [Knowledge]
-    summary: Get file indexing status
-    operationId: getKnowledgeFileStatus
-    parameters: [{ $ref: ../components/parameters.yaml#/FileId }]
-    responses: { '200': { description: Index status, content: { application/json: { schema: { $ref: ../schemas/knowledge.yaml#/KnowledgeFileStatus } } } } }
-reindex:
-  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
-  post:
-    tags: [Knowledge]
-    summary: Reindex knowledge file
-    operationId: reindexKnowledgeFile
-    parameters: [{ $ref: ../components/parameters.yaml#/FileId }]
-    responses: { '202': { description: Reindex queued, content: { application/json: { schema: { $ref: ../schemas/knowledge.yaml#/KnowledgeFileStatus } } } } }
-fileTypes:
-  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
-  get: { tags: [Knowledge], summary: List supported file types, operationId: listKnowledgeFileTypes, responses: { '200': { description: File types, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/common.yaml#/Option } } } } } } }
-indexStatuses:
-  parameters: [{ $ref: ../components/parameters.yaml#/TenantId }, { $ref: ../components/parameters.yaml#/UserId }, { $ref: ../components/parameters.yaml#/RequestId }]
-  get: { tags: [Knowledge], summary: List index statuses, operationId: listKnowledgeIndexStatuses, responses: { '200': { description: Index statuses, content: { application/json: { schema: { type: array, items: { $ref: ../schemas/common.yaml#/Option } } } } } } }
+    summary: Proxy Knowledge Base requests
+    description: |
+      Documentation placeholder for the catch-all Knowledge proxy.
+
+      The runtime gateway accepts GET, POST, PUT, PATCH, DELETE, OPTIONS and
+      HEAD on this path. Concrete Knowledge API contracts are maintained by:
+      `openapi/observelens-knowledge-base/openapi.yaml`.
+    operationId: proxyKnowledgeRequests
+    responses:
+      default:
+        description: Response proxied from observelens-knowledge-base. See upstream OpenAPI.
