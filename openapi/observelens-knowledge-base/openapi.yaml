@@ -452,14 +452,16 @@ components:
       required: true
       description: Current tenant ID. The service uses it for tenant isolation.
       schema:
-        $ref: "#/components/schemas/UUID"
+        type: integer
+        format: int64
     UserId:
       name: X-User-Id
       in: header
       required: true
       description: Current user ID.
       schema:
-        $ref: "#/components/schemas/UUID"
+        type: integer
+        format: int64
     RequestId:
       name: X-Request-Id
       in: header
@@ -621,7 +623,8 @@ components:
         id:
           $ref: "#/components/schemas/UUID"
         tenant_id:
-          $ref: "#/components/schemas/UUID"
+          type: integer
+          format: int64
         name:
           type: string
           example: Pulsar Operations Knowledge Base
@@ -634,7 +637,8 @@ components:
           type: string
           example: text-embedding-model
         created_by:
-          $ref: "#/components/schemas/UUID"
+          type: integer
+          format: int64
         created_at:
           $ref: "#/components/schemas/Timestamp"
         updated_at:
@@ -722,7 +726,8 @@ components:
         id:
           $ref: "#/components/schemas/UUID"
         tenant_id:
-          $ref: "#/components/schemas/UUID"
+          type: integer
+          format: int64
         knowledge_base_id:
           $ref: "#/components/schemas/UUID"
         name:
@@ -745,7 +750,8 @@ components:
         metadata:
           $ref: "#/components/schemas/Metadata"
         created_by:
-          $ref: "#/components/schemas/UUID"
+          type: integer
+          format: int64
         created_at:
           $ref: "#/components/schemas/Timestamp"
         updated_at:
@@ -799,7 +805,8 @@ components:
         id:
           $ref: "#/components/schemas/UUID"
         tenant_id:
-          $ref: "#/components/schemas/UUID"
+          type: integer
+          format: int64
         document_id:
           $ref: "#/components/schemas/UUID"
         version:
@@ -914,7 +921,8 @@ components:
         id:
           $ref: "#/components/schemas/UUID"
         tenant_id:
-          $ref: "#/components/schemas/UUID"
+          type: integer
+          format: int64
         document_id:
           $ref: "#/components/schemas/UUID"
         document_version_id:
@@ -1109,7 +1117,8 @@ components:
         id:
           $ref: "#/components/schemas/UUID"
         tenant_id:
-          $ref: "#/components/schemas/UUID"
+          type: integer
+          format: int64
         retrieval_log_id:
           $ref: "#/components/schemas/UUID"
         chunk_id:
@@ -1124,7 +1133,8 @@ components:
           type: string
           nullable: true
         created_by:
-          $ref: "#/components/schemas/UUID"
+          type: integer
+          format: int64
         created_at:
           $ref: "#/components/schemas/Timestamp"
 
