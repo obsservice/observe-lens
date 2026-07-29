@@ -21,6 +21,7 @@ from observelens_knowledge_base.documents.schemas import (
     IndexTaskResponse,
     UpdateDocumentRequest,
     UploadDocumentResponse,
+    UploadFromUrlRequest,
 )
 from observelens_knowledge_base.documents.service import DocumentService
 from observelens_knowledge_base.documents.storage import DocumentStorage
@@ -81,6 +82,28 @@ async def upload_document(
         document_type,
         _parse_string_list(tags),
         _parse_object(metadata),
+    )
+
+
+@router.post(
+    "/knowledge-bases/{knowledge_base_id}/documents/from-url",
+    response_model=UploadDocumentResponse,
+    status_code=201,
+)
+async def upload_document_from_url(
+    knowledge_base_id: UUID,
+    request: UploadFromUrlRequest,
+    ctx: Annotated[RequestContext, Depends(get_request_context)],
+    service: Annotated[DocumentService, Depends(get_document_service)],
+) -> UploadDocumentResponse:
+    return await service.upload_from_url(
+        ctx,
+        knowledge_base_id,
+        request.url,
+        request.name,
+        request.document_type,
+        request.tags,
+        request.metadata,
     )
 
 

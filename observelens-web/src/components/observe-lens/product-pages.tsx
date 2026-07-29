@@ -34,6 +34,21 @@ import {
   type IncidentOption,
   updateIncidentIntegration,
 } from '@/lib/api/incidents';
+import {
+  createKnowledgeBase,
+  deleteKnowledgeBase,
+  knowledgeQueryKeys,
+  listKnowledgeBases,
+  listKnowledgeDocuments,
+  searchKnowledge,
+  updateKnowledgeBase,
+  uploadKnowledgeDocument,
+  type DocumentStatus,
+  type DocumentType,
+  type KnowledgeBase,
+  type KnowledgeDocument,
+  type RetrievalResult,
+} from '@/lib/api/knowledge';
 import { ApiError, getApiBaseUrl } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -41,6 +56,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Activity,
   BellRing,
+  BookOpen,
   Box,
   Calendar,
   ChevronDown,
@@ -52,29 +68,42 @@ import {
   Database,
   Download,
   Eye,
+  ExternalLink,
+  FileCode,
   FileSearch,
+  FileSpreadsheet,
   FileText,
+  Folder,
+  Funnel,
   Grid2X2,
   GitBranch,
+  Info,
   List,
   MessageCircle,
   MessageSquare,
   MoreVertical,
   Play,
   Plus,
+  RefreshCw,
+  RotateCcw,
   Search,
   Send,
   Server,
   Settings,
   ShieldCheck,
+  SlidersHorizontal,
   Square,
   Trash2,
+  Upload,
   Zap,
+  Globe,
+  HardDriveUpload,
 } from 'lucide-react';
 import Link from 'next/link';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -163,8 +192,6 @@ const sourceClassNames: Record<string, string> = {
   Zabbix: 'bg-red-600 text-white',
 };
 
-
-
 const NEXT_STATUSES: Record<string, string[]> = {
   Open: ['Acknowledged', 'Investigating'],
   Acknowledged: ['Investigating'],
@@ -242,7 +269,9 @@ function IncidentStatusMenu({
           <div className="absolute right-0 top-9 z-40 w-48 overflow-hidden rounded-md border border-slate-200 bg-white py-1 shadow-lg">
             <div className="flex items-center justify-between px-3 py-1.5">
               <span className="text-[11px] font-semibold uppercase text-slate-400">
-                {pendingStatus === 'Acknowledged' ? 'Assign to' : 'Change status'}
+                {pendingStatus === 'Acknowledged'
+                  ? 'Assign to'
+                  : 'Change status'}
               </span>
               <span className="text-[11px] font-medium text-slate-400">
                 {incident.status}
@@ -316,7 +345,6 @@ function IncidentStatusMenu({
   );
 }
 
-
 function getIncidentColumns({
   onOpenConversation,
   onStatusChange,
@@ -335,7 +363,9 @@ function getIncidentColumns({
       render: (row) => (
         <div className="truncate" title={`${row.name} (${row.incidentId})`}>
           <p className="truncate font-semibold text-slate-950">{row.name}</p>
-          <p className="mt-1 truncate text-xs text-slate-500">{row.incidentId}</p>
+          <p className="mt-1 truncate text-xs text-slate-500">
+            {row.incidentId}
+          </p>
         </div>
       ),
     },
@@ -372,7 +402,10 @@ function getIncidentColumns({
       className: 'w-[9%] truncate pl-2',
       header: 'Source',
       render: (row) => (
-        <span className="inline-flex items-center gap-2 truncate" title={row.source}>
+        <span
+          className="inline-flex items-center gap-2 truncate"
+          title={row.source}
+        >
           <span
             className={cn(
               'grid size-5 shrink-0 place-items-center rounded-full text-[10px] font-semibold',
@@ -389,21 +422,28 @@ function getIncidentColumns({
       className: 'w-[13%] truncate',
       header: 'Start Time',
       render: (row) => (
-        <span className="truncate" title={row.createdAt}>{row.createdAt}</span>
+        <span className="truncate" title={row.createdAt}>
+          {row.createdAt}
+        </span>
       ),
     },
     {
       className: 'w-[11%] truncate pl-2',
       header: 'Updated At',
       render: (row) => (
-        <span className="truncate" title={row.updatedAt}>{row.updatedAt}</span>
+        <span className="truncate" title={row.updatedAt}>
+          {row.updatedAt}
+        </span>
       ),
     },
     {
       className: 'w-[10%] truncate',
       header: 'Assignee',
       render: (row) => (
-        <span className="inline-flex items-center gap-2 truncate" title={row.assignee}>
+        <span
+          className="inline-flex items-center gap-2 truncate"
+          title={row.assignee}
+        >
           <span
             className={cn(
               'grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold text-white',
@@ -434,7 +474,9 @@ function getIncidentColumns({
           <IncidentStatusMenu
             incident={row}
             isPending={statusChangingIncidentId === row.id}
-            onStatusChange={(status, assignee) => onStatusChange(row, status, assignee)}
+            onStatusChange={(status, assignee) =>
+              onStatusChange(row, status, assignee)
+            }
           />
         </div>
       ),
@@ -1211,6 +1253,194 @@ function IntegrationTokenDialog({
             </button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+
+const fallbackEmbeddingModelOptions: IncidentOption[] = [
+  { label: 'text-embedding-3-small', value: 'text-embedding-3-small' },
+  { label: 'text-embedding-3-large', value: 'text-embedding-3-large' },
+  { label: 'text-embedding-ada-002', value: 'text-embedding-ada-002' },
+  { label: 'bge-large-zh-v1.5', value: 'bge-large-zh-v1.5' },
+  { label: 'bge-m3', value: 'bge-m3' },
+  { label: 'gte-large-zh', value: 'gte-large-zh' },
+];
+
+const knowledgeBaseFormSchema = z.object({
+  description: z
+    .string()
+    .trim()
+    .max(512, 'Description must be 512 characters or fewer.')
+    .optional(),
+  embedding_model: z
+    .string()
+    .trim()
+    .min(1, 'Embedding model is required.'),
+  name: z
+    .string()
+    .trim()
+    .min(1, 'Knowledge base name is required.')
+    .max(128, 'Knowledge base name must be 128 characters or fewer.'),
+});
+
+type KnowledgeBaseFormValues = z.infer<typeof knowledgeBaseFormSchema>;
+
+function KnowledgeBaseFormDialog({
+  errorMessage,
+  isSubmitting,
+  isOpen,
+  onClose,
+  onSubmit,
+}: {
+  errorMessage?: string;
+  isSubmitting: boolean;
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (values: KnowledgeBaseFormValues) => Promise<void>;
+}): ReactNode {
+  const {
+    formState: { errors },
+    handleSubmit,
+    register,
+    reset,
+  } = useForm<KnowledgeBaseFormValues>({
+    defaultValues: {
+      description: '',
+      embedding_model: 'text-embedding-3-small',
+      name: '',
+    },
+    resolver: zodResolver(knowledgeBaseFormSchema),
+  });
+
+  const closeDialog = () => {
+    if (isSubmitting) {
+      return;
+    }
+    reset();
+    onClose();
+  };
+
+  if (!isOpen) {
+    return null;
+  }
+
+  return (
+    <div
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 px-4"
+      role="dialog"
+    >
+      <div className="w-full max-w-[520px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl shadow-slate-300/40">
+        <div className="flex items-start justify-between border-b border-slate-200 px-6 py-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">
+              New Knowledge Base
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Create a knowledge base to store and retrieve documents.
+            </p>
+          </div>
+          <button
+            aria-label="Close knowledge base dialog"
+            className="grid size-8 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+            onClick={closeDialog}
+            type="button"
+          >
+            ×
+          </button>
+        </div>
+
+        <form
+          className="space-y-5 px-6 py-5"
+          onSubmit={(event) => {
+            void handleSubmit(onSubmit)(event);
+          }}
+        >
+          <label className="block">
+            <RequiredLabel>Knowledge Base Name</RequiredLabel>
+            <input
+              className={cn(
+                'mt-2 h-10 w-full rounded-md border bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100',
+                errors.name ? 'border-red-300' : 'border-slate-200',
+              )}
+              placeholder="Production Runbooks"
+              {...register('name')}
+            />
+            {errors.name ? (
+              <span className="mt-1 block text-xs text-red-600">
+                {errors.name.message}
+              </span>
+            ) : null}
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-medium text-slate-800">
+              Description
+            </span>
+            <textarea
+              className={cn(
+                'mt-2 min-h-[80px] w-full rounded-md border bg-white px-3 py-2 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100',
+                errors.description ? 'border-red-300' : 'border-slate-200',
+              )}
+              placeholder="Optional description for this knowledge base..."
+              rows={3}
+              {...register('description')}
+            />
+            {errors.description ? (
+              <span className="mt-1 block text-xs text-red-600">
+                {errors.description.message}
+              </span>
+            ) : null}
+          </label>
+
+          <label className="block">
+            <RequiredLabel>Embedding Model</RequiredLabel>
+            <select
+              className={cn(
+                'mt-2 h-10 w-full rounded-md border bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100',
+                errors.embedding_model ? 'border-red-300' : 'border-slate-200',
+              )}
+              {...register('embedding_model')}
+            >
+              {fallbackEmbeddingModelOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {errors.embedding_model ? (
+              <span className="mt-1 block text-xs text-red-600">
+                {errors.embedding_model.message}
+              </span>
+            ) : null}
+          </label>
+
+          {errorMessage ? (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {errorMessage}
+            </div>
+          ) : null}
+
+          <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
+            <button
+              className="inline-flex h-9 items-center justify-center rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSubmitting}
+              onClick={closeDialog}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className="inline-flex h-9 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSubmitting}
+              type="submit"
+            >
+              {isSubmitting ? 'Creating...' : 'Create Knowledge Base'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -2024,252 +2254,154 @@ function EntityPagination(): ReactNode {
   );
 }
 
-interface KnowledgeRow {
-  author: string;
-  category:
-    | 'Best Practices'
-    | 'FAQ'
-    | 'Integrations'
-    | 'References'
-    | 'Research'
-    | 'Templates';
-  description: string;
-  fileName: string;
-  status: 'Archived' | 'Draft' | 'Published';
-  size: string;
-  type: 'Document' | 'Markdown' | 'PDF' | 'Spreadsheet';
-  updatedAt: string;
+const documentStatusTone: Record<DocumentStatus, StatusTone> = {
+  ARCHIVED: 'slate',
+  FAILED: 'red',
+  PENDING: 'amber',
+  PROCESSING: 'blue',
+  READY: 'emerald',
+  REINDEXING: 'blue',
+  UPLOADED: 'blue',
+};
+
+const documentTypeClassNames: Record<DocumentType, string> = {
+  CASE: 'border-orange-200 bg-orange-50 text-orange-700',
+  GUIDE: 'border-blue-200 bg-blue-50 text-blue-700',
+  OTHER: 'border-slate-200 bg-slate-50 text-slate-700',
+  REFERENCE: 'border-violet-200 bg-violet-50 text-violet-700',
+  SOP: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+};
+
+const documentTypeLabels: Record<DocumentType, string> = {
+  CASE: 'Case',
+  GUIDE: 'Guide',
+  OTHER: 'Other',
+  REFERENCE: 'Reference',
+  SOP: 'SOP',
+};
+
+const authorPalette = [
+  'bg-violet-700',
+  'bg-blue-600',
+  'bg-lime-600',
+  'bg-orange-500',
+  'bg-cyan-600',
+];
+
+function formatKnowledgeDate(value: string): string {
+  return new Intl.DateTimeFormat('zh-CN', {
+    day: '2-digit',
+    hour: '2-digit',
+    hour12: false,
+    minute: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(new Date(value));
 }
 
-const files: KnowledgeRow[] = [
-  {
-    author: 'sre-team',
-    category: 'Best Practices',
-    description: 'Comprehensive guide to incident management best practices.',
-    fileName: 'Incident Management Best Practices.pdf',
-    size: '2.4 MB',
-    status: 'Published',
-    type: 'PDF',
-    updatedAt: '2024-05-20 10:30',
-  },
-  {
-    author: 'wangwei',
-    category: 'Templates',
-    description: 'Template for creating on-call playbooks and procedures.',
-    fileName: 'On-call Playbook Template.docx',
-    size: '156 KB',
-    status: 'Published',
-    type: 'Document',
-    updatedAt: '2024-05-18 14:22',
-  },
-  {
-    author: 'lijing',
-    category: 'References',
-    description:
-      'Reference guide for incident severity levels and definitions.',
-    fileName: 'Severity Levels Reference.xlsx',
-    size: '89 KB',
-    status: 'Published',
-    type: 'Spreadsheet',
-    updatedAt: '2024-05-15 09:11',
-  },
-  {
-    author: 'zhangsan',
-    category: 'Best Practices',
-    description: 'Step-by-step guide for conducting post-incident reviews.',
-    fileName: 'Post-Incident Review Guide.md',
-    size: '12 KB',
-    status: 'Published',
-    type: 'Markdown',
-    updatedAt: '2024-05-10 16:45',
-  },
-  {
-    author: 'sre-team',
-    category: 'Templates',
-    description: 'Pre-built templates for incident communications.',
-    fileName: 'Communications Templates.pdf',
-    size: '1.1 MB',
-    status: 'Draft',
-    type: 'PDF',
-    updatedAt: '2024-05-08 11:20',
-  },
-  {
-    author: 'lijing',
-    category: 'Integrations',
-    description: 'How to integrate external tools and services.',
-    fileName: 'Integration Guide.md',
-    size: '34 KB',
-    status: 'Published',
-    type: 'Markdown',
-    updatedAt: '2024-05-05 13:33',
-  },
-  {
-    author: 'wangwei',
-    category: 'Research',
-    description: 'Research on alert fatigue and mitigation strategies.',
-    fileName: 'Alert Fatigue Study.pdf',
-    size: '3.2 MB',
-    status: 'Archived',
-    type: 'PDF',
-    updatedAt: '2024-05-01 10:05',
-  },
-  {
-    author: 'sre-team',
-    category: 'FAQ',
-    description: 'Frequently asked questions about incident management.',
-    fileName: 'FAQ - Incident Management.docx',
-    size: '78 KB',
-    status: 'Published',
-    type: 'Document',
-    updatedAt: '2024-04-28 15:12',
-  },
-];
+function formatDocumentStatus(status: DocumentStatus): string {
+  const normalized = status.toLowerCase().replaceAll('_', ' ');
+  return normalized.replace(/\b\w/g, (value) => value.toUpperCase());
+}
 
-const fileStatusTone: Record<KnowledgeRow['status'], StatusTone> = {
-  Archived: 'slate',
-  Draft: 'amber',
-  Published: 'emerald',
-};
+function getDocumentDescription(document: KnowledgeDocument): string {
+  const description = document.metadata?.description;
+  if (typeof description === 'string' && description.trim()) {
+    return description;
+  }
+  if (document.tags.length > 0) {
+    return document.tags.join(', ');
+  }
+  return `${documentTypeLabels[document.document_type]} document`;
+}
 
-const fileCategoryClassNames: Record<KnowledgeRow['category'], string> = {
-  'Best Practices': 'border-violet-200 bg-violet-50 text-violet-700',
-  FAQ: 'border-blue-200 bg-blue-50 text-blue-700',
-  Integrations: 'border-blue-200 bg-blue-50 text-blue-700',
-  References: 'border-blue-200 bg-blue-50 text-blue-700',
-  Research: 'border-pink-200 bg-pink-50 text-pink-700',
-  Templates: 'border-orange-200 bg-orange-50 text-orange-700',
-};
+function getAuthorClassName(authorId: number): string {
+  return (
+    authorPalette[Math.abs(authorId) % authorPalette.length] ?? 'bg-slate-500'
+  );
+}
 
-const fileTypeClassNames: Record<KnowledgeRow['type'], string> = {
-  Document: 'text-blue-600',
-  Markdown: 'text-orange-500',
-  PDF: 'text-red-600',
-  Spreadsheet: 'text-emerald-600',
-};
+function formatDocumentSize(document: KnowledgeDocument): string {
+  const sizeValue =
+    document.metadata?.size_bytes ??
+    document.metadata?.sizeBytes ??
+    document.metadata?.file_size;
 
-const authorClassNames: Record<string, string> = {
-  lijing: 'bg-lime-600',
-  'sre-team': 'bg-violet-700',
-  wangwei: 'bg-blue-600',
-  zhangsan: 'bg-orange-500',
-};
+  if (typeof sizeValue !== 'number' || Number.isNaN(sizeValue)) {
+    return '-';
+  }
 
-const fileColumns: DataColumn<KnowledgeRow>[] = [
-  {
-    className: 'w-[30%]',
-    header: 'Name',
-    render: (row) => (
-      <div className="flex items-center gap-3">
-        <FileText
-          aria-hidden="true"
-          className={fileTypeClassNames[row.type]}
-          size={22}
-        />
-        <div className="min-w-0">
-          <p className="truncate font-semibold text-slate-950">
-            {row.fileName}
-          </p>
-          <p className="mt-1 truncate text-xs text-slate-600">
-            {row.description}
-          </p>
-        </div>
-      </div>
-    ),
-  },
-  {
-    className: 'w-[12%]',
-    header: 'Category',
-    render: (row) => (
-      <InspectionTag className={fileCategoryClassNames[row.category]}>
-        {row.category}
-      </InspectionTag>
-    ),
-  },
-  {
-    className: 'w-[11%]',
-    header: 'Type',
-    render: (row) => (
-      <span className="inline-flex items-center gap-2">
-        <FileText
-          aria-hidden="true"
-          className={fileTypeClassNames[row.type]}
-          size={15}
-        />
-        {row.type}
-      </span>
-    ),
-  },
-  {
-    className: 'w-[11%]',
-    header: 'Status',
-    render: (row) => (
-      <StatusBadge tone={fileStatusTone[row.status]}>{row.status}</StatusBadge>
-    ),
-  },
-  {
-    className: 'w-[13%]',
-    header: 'Updated At',
-    render: (row) => row.updatedAt,
-  },
-  { className: 'w-[7%]', header: 'Size', render: (row) => row.size },
-  {
-    className: 'w-[11%]',
-    header: 'Author',
-    render: (row) => (
-      <span className="inline-flex items-center gap-2">
-        <span
-          className={cn(
-            'grid size-6 place-items-center rounded-full text-xs font-semibold text-white',
-            authorClassNames[row.author] ?? 'bg-slate-500',
-          )}
-        >
-          {row.author.slice(0, 1).toUpperCase()}
-        </span>
-        {row.author}
-      </span>
-    ),
-  },
-  {
-    className: 'w-[8%]',
-    header: 'Actions',
-    render: (row) => (
-      <div className="flex items-center gap-2">
-        <ActionButton
-          aria-label={`View ${row.fileName}`}
-          className="size-8 border-0 bg-transparent p-0 text-blue-600 shadow-none hover:bg-slate-100 hover:text-blue-700"
-          message={`${row.fileName} opened`}
-          size="sm"
-          variant="ghost"
-        >
-          <Eye aria-hidden="true" size={15} />
-        </ActionButton>
-        <ActionButton
-          aria-label={`Download ${row.fileName}`}
-          className="size-8 border-0 bg-transparent p-0 text-blue-600 shadow-none hover:bg-slate-100 hover:text-blue-700"
-          message={`${row.fileName} download started`}
-          size="sm"
-          variant="ghost"
-        >
-          <Download aria-hidden="true" size={15} />
-        </ActionButton>
-        <ActionButton
-          aria-label={`More actions for ${row.fileName}`}
-          className="size-8 border-0 bg-transparent p-0 text-blue-600 shadow-none hover:bg-slate-100 hover:text-blue-700"
-          message={`${row.fileName} actions opened`}
-          size="sm"
-          variant="ghost"
-        >
-          <MoreVertical aria-hidden="true" size={15} />
-        </ActionButton>
-      </div>
-    ),
-  },
-];
+  if (sizeValue < 1024) {
+    return `${sizeValue} B`;
+  }
 
-function FilesPagination(): ReactNode {
+  if (sizeValue < 1024 * 1024) {
+    return `${(sizeValue / 1024).toFixed(0)} KB`;
+  }
+
+  return `${(sizeValue / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function inferDocumentType(fileName: string): DocumentType {
+  const extension = fileName.split('.').pop()?.toLowerCase();
+
+  if (extension === 'md' || extension === 'markdown') {
+    return 'GUIDE';
+  }
+
+  if (extension === 'doc' || extension === 'docx' || extension === 'pdf') {
+    return 'REFERENCE';
+  }
+
+  if (extension === 'xls' || extension === 'xlsx' || extension === 'csv') {
+    return 'CASE';
+  }
+
+  return 'OTHER';
+}
+
+function getDocumentTypeIcon(documentType: DocumentType): typeof FileText {
+  if (documentType === 'CASE') {
+    return FileSpreadsheet;
+  }
+
+  if (documentType === 'GUIDE' || documentType === 'SOP') {
+    return FileText;
+  }
+
+  if (documentType === 'REFERENCE') {
+    return FileSearch;
+  }
+
+  return FileCode;
+}
+
+function buildDocumentContentUrl(documentId: string): string {
+  return `${getApiBaseUrl()}/knowledge/documents/${documentId}/content`;
+}
+
+function FilesPagination({
+  onPageChange,
+  page,
+  pageSize,
+  total,
+}: {
+  onPageChange?: (page: number) => void;
+  page: number;
+  pageSize: number;
+  total: number;
+}): ReactNode {
+  const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const end = Math.min(page * pageSize, total);
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const canGoPrevious = page > 1;
+  const canGoNext = page < pageCount;
+
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-5 py-4 text-sm text-slate-600">
-      <span>Showing 1 to 8 of 8 files</span>
+      <span>
+        Showing {start} to {end} of {total} files
+      </span>
       <div className="flex items-center gap-3">
         <ActionButton
           className="h-8 gap-2 px-3 text-xs"
@@ -2277,25 +2409,29 @@ function FilesPagination(): ReactNode {
           size="sm"
           variant="outline"
         >
-          10 / page
+          {pageSize} / page
           <ChevronDown aria-hidden="true" size={14} />
         </ActionButton>
         <ActionButton
           aria-label="Previous files page"
           className="size-8 px-0"
+          disabled={!canGoPrevious}
           message="Previous page selected"
+          onClick={() => onPageChange?.(page - 1)}
           size="sm"
           variant="ghost"
         >
           <ChevronLeft aria-hidden="true" size={15} />
         </ActionButton>
         <span className="grid size-8 place-items-center rounded-md bg-blue-600 text-xs font-semibold text-white">
-          1
+          {page}
         </span>
         <ActionButton
           aria-label="Next files page"
           className="size-8 px-0"
+          disabled={!canGoNext}
           message="Next page selected"
+          onClick={() => onPageChange?.(page + 1)}
           size="sm"
           variant="ghost"
         >
@@ -2861,7 +2997,7 @@ export function IncidentsPage(): ReactNode {
       ? (openConversationMutation.variables ?? null)
       : null,
     statusChangingIncidentId: transitionIncidentMutation.isPending
-      ? transitionIncidentMutation.variables?.incidentId ?? null
+      ? (transitionIncidentMutation.variables?.incidentId ?? null)
       : null,
   });
 
@@ -3762,39 +3898,1357 @@ export function EntityTopologyPage(): ReactNode {
   );
 }
 
-export function KnowledgeFilesPage(): ReactNode {
+type UploadType = 'local' | 'url';
+
+function UploadTypeDialog({
+  isOpen,
+  onClose,
+  onSelect,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSelect: (type: UploadType) => void;
+}): ReactNode {
+  if (!isOpen) {
+    return null;
+  }
+
+  const options: {
+    description: string;
+    icon: typeof HardDriveUpload;
+    label: string;
+    type: UploadType;
+  }[] = [
+    {
+      description: 'Upload a file from your computer.',
+      icon: HardDriveUpload,
+      label: 'Upload Local File',
+      type: 'local',
+    },
+    {
+      description: 'Import a document from a web URL.',
+      icon: Globe,
+      label: 'Upload Web URL',
+      type: 'url',
+    },
+  ];
+
   return (
-    <AppShell activeItem="Files" activeSection="knowledge">
+    <div
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 px-4"
+      role="dialog"
+    >
+      <div className="w-full max-w-[440px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl shadow-slate-300/40">
+        <div className="flex items-start justify-between border-b border-slate-200 px-6 py-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">
+              Upload File
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Choose how you want to add a document.
+            </p>
+          </div>
+          <button
+            aria-label="Close upload type dialog"
+            className="grid size-8 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+            onClick={onClose}
+            type="button"
+          >
+            ×
+          </button>
+        </div>
+        <div className="space-y-3 p-6">
+          {options.map((option) => {
+            const Icon = option.icon;
+            return (
+              <button
+                className="flex w-full items-center gap-4 rounded-md border border-slate-200 bg-white px-4 py-4 text-left transition hover:border-blue-300 hover:bg-blue-50"
+                key={option.type}
+                onClick={() => onSelect(option.type)}
+                type="button"
+              >
+                <span className="grid size-10 shrink-0 place-items-center rounded-md bg-indigo-50 text-blue-700">
+                  <Icon aria-hidden="true" size={20} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-slate-950">
+                    {option.label}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-slate-500">
+                    {option.description}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UploadFileDialog({
+  errorMessage,
+  isOpen,
+  isSubmitting,
+  onClose,
+  onSubmit,
+  uploadType,
+}: {
+  errorMessage?: string;
+  isOpen: boolean;
+  isSubmitting: boolean;
+  onClose: () => void;
+  onSubmit: (values: { file?: File | null; name?: string; url?: string }) => void;
+  uploadType: UploadType;
+}): ReactNode {
+  const [name, setName] = useState('');
+  const [url, setUrl] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+
+  const closeDialog = () => {
+    if (isSubmitting) {
+      return;
+    }
+    setName('');
+    setUrl('');
+    setFile(null);
+    onClose();
+  };
+
+  if (!isOpen) {
+    return null;
+  }
+
+  const isLocal = uploadType === 'local';
+  const title = isLocal ? 'Upload Local File' : 'Upload Web URL';
+  const canSubmit = isLocal ? file !== null : url.trim() !== '';
+
+  return (
+    <div
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 px-4"
+      role="dialog"
+    >
+      <div className="w-full max-w-[520px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl shadow-slate-300/40">
+        <div className="flex items-start justify-between border-b border-slate-200 px-6 py-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {isLocal
+                ? 'Select a file from your computer to upload.'
+                : 'Enter a web URL to import a document.'}
+            </p>
+          </div>
+          <button
+            aria-label="Close upload dialog"
+            className="grid size-8 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+            onClick={closeDialog}
+            type="button"
+          >
+            ×
+          </button>
+        </div>
+
+        <form
+          className="space-y-5 px-6 py-5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!canSubmit) {
+              return;
+            }
+            onSubmit({ file, name: name.trim() || undefined, url: url.trim() || undefined });
+          }}
+        >
+          {isLocal ? (
+            <div className="block">
+              <span className="text-sm font-medium text-slate-800">
+                File
+              </span>
+              <button
+                className="mt-2 flex w-full items-center gap-3 rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-left transition hover:border-blue-400 hover:bg-blue-50"
+                onClick={() => {
+                  const input = document.createElement('input');
+                  input.type = 'file';
+                  input.onchange = () => {
+                    if (input.files?.[0]) {
+                      setFile(input.files[0]);
+                    }
+                  };
+                  input.click();
+                }}
+                type="button"
+              >
+                <span className="grid size-9 shrink-0 place-items-center rounded-md bg-white text-slate-400 shadow-sm">
+                  <Upload aria-hidden="true" size={17} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  {file ? (
+                    <>
+                      <span className="block truncate text-sm font-medium text-slate-950">
+                        {file.name}
+                      </span>
+                      <span className="mt-0.5 block text-xs text-slate-500">
+                        Click to replace
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="block text-sm font-medium text-slate-600">
+                        Click to browse or drag a file here
+                      </span>
+                      <span className="mt-0.5 block text-xs text-slate-400">
+                        Supports common document formats
+                      </span>
+                    </>
+                  )}
+                </span>
+              </button>
+            </div>
+          ) : (
+            <label className="block">
+              <span className="text-sm font-medium text-slate-800">
+                Web URL
+              </span>
+              <input
+                className="mt-2 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                onChange={(event) => setUrl(event.target.value)}
+                placeholder="https://example.com/document.pdf"
+                type="url"
+                value={url}
+              />
+            </label>
+          )}
+
+          <label className="block">
+            <span className="text-sm font-medium text-slate-800">
+              Document Name (optional)
+            </span>
+            <input
+              className="mt-2 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              onChange={(event) => setName(event.target.value)}
+              placeholder={isLocal ? (file?.name ?? 'Untitled') : 'Untitled'}
+              type="text"
+              value={name}
+            />
+          </label>
+
+          {errorMessage ? (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {errorMessage}
+            </div>
+          ) : null}
+
+          <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
+            <button
+              className="inline-flex h-9 items-center justify-center rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSubmitting}
+              onClick={closeDialog}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className="inline-flex h-9 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSubmitting || !canSubmit}
+              type="submit"
+            >
+              {isSubmitting ? 'Uploading...' : 'Upload'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+export function KnowledgeFilesPage(): ReactNode {
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [baseKeyword, setBaseKeyword] = useState('');
+  const [documentKeyword, setDocumentKeyword] = useState('');
+  const [documentType, setDocumentType] = useState('');
+  const [documentStatus, setDocumentStatus] = useState('');
+  const [documentPage, setDocumentPage] = useState(1);
+  const [openKnowledgeBaseMenuId, setOpenKnowledgeBaseMenuId] = useState<
+    string | null
+  >(null);
+  const [selectedKnowledgeBaseId, setSelectedKnowledgeBaseId] = useState<
+    string | null
+  >(null);
+  const [isCreateBaseDialogOpen, setIsCreateBaseDialogOpen] = useState(false);
+  const [knowledgeBaseMenuPosition, setKnowledgeBaseMenuPosition] = useState<{
+    top: number;
+    right: number;
+  } | null>(null);
+  const [isUploadTypeDialogOpen, setIsUploadTypeDialogOpen] = useState(false);
+  const [uploadType, setUploadType] = useState<UploadType>('local');
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
+
+  const baseQueryParams = {
+    keyword: baseKeyword,
+    page: 1,
+    page_size: 50,
+  };
+  const documentQueryParams = {
+    document_type: (documentType || undefined) as DocumentType | undefined,
+    keyword: documentKeyword,
+    page: documentPage,
+    page_size: 10,
+    status: (documentStatus || undefined) as DocumentStatus | undefined,
+  };
+  const knowledgeBasesQuery = useQuery({
+    queryFn: () => listKnowledgeBases(baseQueryParams),
+    queryKey: knowledgeQueryKeys.bases(baseQueryParams),
+  });
+  const knowledgeBases = useMemo(
+    () => knowledgeBasesQuery.data?.items ?? [],
+    [knowledgeBasesQuery.data?.items],
+  );
+  const selectedKnowledgeBase =
+    knowledgeBases.find((item) => item.id === selectedKnowledgeBaseId) ?? null;
+  const documentsQuery = useQuery({
+    enabled: selectedKnowledgeBaseId !== null,
+    queryFn: () =>
+      listKnowledgeDocuments(
+        selectedKnowledgeBaseId ?? '',
+        documentQueryParams,
+      ),
+    queryKey: knowledgeQueryKeys.documents(
+      selectedKnowledgeBaseId,
+      documentQueryParams,
+    ),
+  });
+  const createBaseMutation = useMutation({
+    mutationFn: createKnowledgeBase,
+    onSuccess: async (knowledgeBase) => {
+      await queryClient.invalidateQueries({
+        queryKey: knowledgeQueryKeys.all,
+      });
+      setSelectedKnowledgeBaseId(knowledgeBase.id);
+      setIsCreateBaseDialogOpen(false);
+    },
+  });
+  const uploadDocumentMutation = useMutation({
+    mutationFn: ({
+      file,
+      knowledgeBaseId,
+    }: {
+      file: File;
+      knowledgeBaseId: string;
+    }) =>
+      uploadKnowledgeDocument(knowledgeBaseId, {
+        document_type: inferDocumentType(file.name),
+        file,
+        metadata: {
+          size_bytes: file.size,
+        },
+        name: file.name,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: knowledgeQueryKeys.all,
+      });
+    },
+  });
+  const updateBaseMutation = useMutation({
+    mutationFn: ({
+      knowledgeBase,
+      status,
+      name,
+      description,
+    }: {
+      description?: string | null;
+      knowledgeBase: KnowledgeBase;
+      name?: string;
+      status?: KnowledgeBase['status'];
+    }) =>
+      updateKnowledgeBase(knowledgeBase.id, {
+        description,
+        name,
+        status,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: knowledgeQueryKeys.all,
+      });
+    },
+  });
+  const deleteBaseMutation = useMutation({
+    mutationFn: deleteKnowledgeBase,
+    onSuccess: async (_result, knowledgeBaseId) => {
+      if (selectedKnowledgeBaseId === knowledgeBaseId) {
+        setSelectedKnowledgeBaseId(null);
+      }
+      setOpenKnowledgeBaseMenuId(null);
+      await queryClient.invalidateQueries({
+        queryKey: knowledgeQueryKeys.all,
+      });
+    },
+  });
+  const documents = documentsQuery.data?.items ?? [];
+  const documentTotal = documentsQuery.data?.total ?? 0;
+  const queryError =
+    knowledgeBasesQuery.error instanceof ApiError
+      ? knowledgeBasesQuery.error.message
+      : documentsQuery.error instanceof ApiError
+        ? documentsQuery.error.message
+        : 'Knowledge data could not be loaded.';
+  const mutationError =
+    createBaseMutation.error instanceof ApiError
+      ? createBaseMutation.error.message
+      : uploadDocumentMutation.error instanceof ApiError
+        ? uploadDocumentMutation.error.message
+        : updateBaseMutation.error instanceof ApiError
+          ? updateBaseMutation.error.message
+          : deleteBaseMutation.error instanceof ApiError
+            ? deleteBaseMutation.error.message
+            : null;
+  const documentColumns: DataColumn<KnowledgeDocument>[] = [
+    {
+      className: 'w-[28%]',
+      header: 'Name',
+      render: (document) => {
+        const DocumentIcon = getDocumentTypeIcon(document.document_type);
+
+        return (
+          <div className="flex min-w-0 items-center gap-3">
+            <span
+              className={cn(
+                'grid size-8 shrink-0 place-items-center rounded-md border',
+                documentTypeClassNames[document.document_type],
+              )}
+            >
+              <DocumentIcon aria-hidden="true" size={15} />
+            </span>
+            <div className="min-w-0">
+              <p className="truncate font-semibold text-slate-950">
+                {document.name}
+              </p>
+              <p className="mt-1 truncate text-xs text-slate-500">
+                {getDocumentDescription(document)}
+              </p>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      className: 'w-[10%]',
+      header: 'Category',
+      render: (document) => (
+        <span className="inline-flex max-w-full rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
+          <span className="truncate">
+            {document.tags[0] ?? documentTypeLabels[document.document_type]}
+          </span>
+        </span>
+      ),
+    },
+    {
+      className: 'w-[8%]',
+      header: 'Status',
+      render: (document) => (
+        <StatusBadge tone={documentStatusTone[document.status]}>
+          {formatDocumentStatus(document.status)}
+        </StatusBadge>
+      ),
+    },
+    {
+      className: 'w-[13%]',
+      header: 'Updated At',
+      render: (document) => formatKnowledgeDate(document.updated_at),
+    },
+    {
+      className: 'w-[8%]',
+      header: 'Size',
+      render: (document) => formatDocumentSize(document),
+    },
+    {
+      className: 'w-[10%]',
+      header: 'Author',
+      render: (document) => (
+        <div className="flex min-w-0 items-center gap-2">
+          <span
+            className={cn(
+              'grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold text-white',
+              getAuthorClassName(document.created_by),
+            )}
+          >
+            {String(document.created_by).slice(-1)}
+          </span>
+          <span className="truncate text-xs text-slate-600">
+            user-{document.created_by}
+          </span>
+        </div>
+      ),
+    },
+    {
+      className: 'w-[15%]',
+      header: 'Actions',
+      render: (document) => (
+        <div className="flex items-center gap-1">
+          <ActionButton
+            aria-label={`View ${document.name}`}
+            className="size-8 px-0 text-slate-500 hover:text-blue-600"
+            message={`${document.name} opened`}
+            size="sm"
+            variant="ghost"
+          >
+            <Eye aria-hidden="true" size={14} />
+          </ActionButton>
+          <a
+            aria-label={`Download ${document.name}`}
+            className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-slate-100 text-slate-500 shadow-sm transition hover:bg-slate-200 hover:text-blue-600"
+            href={buildDocumentContentUrl(document.id)}
+          >
+            <Download aria-hidden="true" size={14} />
+          </a>
+          <ActionButton
+            aria-label={`More actions for ${document.name}`}
+            className="size-8 px-0 text-slate-500 hover:text-blue-600"
+            message={`${document.name} actions opened`}
+            size="sm"
+            variant="ghost"
+          >
+            <MoreVertical aria-hidden="true" size={14} />
+          </ActionButton>
+        </div>
+      ),
+    },
+  ];
+
+  useEffect(() => {
+    if (knowledgeBases.length === 0) {
+      setSelectedKnowledgeBaseId(null);
+      return;
+    }
+
+    if (!knowledgeBases.some((item) => item.id === selectedKnowledgeBaseId)) {
+      setSelectedKnowledgeBaseId(knowledgeBases[0]?.id ?? null);
+    }
+  }, [knowledgeBases, selectedKnowledgeBaseId]);
+
+  function handleCreateKnowledgeBase(): void {
+    setIsCreateBaseDialogOpen(true);
+  }
+
+  async function handleSubmitKnowledgeBase(
+    values: KnowledgeBaseFormValues,
+  ): Promise<void> {
+    await createBaseMutation.mutateAsync({
+      description: values.description?.trim() || undefined,
+      embedding_model: values.embedding_model,
+      name: values.name,
+    });
+  }
+
+  function handleUploadFile(file: File | undefined): void {
+    if (!file || !selectedKnowledgeBaseId) {
+      return;
+    }
+
+    uploadDocumentMutation.mutate({
+      file,
+      knowledgeBaseId: selectedKnowledgeBaseId,
+    });
+  }
+
+  function handleToggleKnowledgeBase(knowledgeBase: KnowledgeBase): void {
+    updateBaseMutation.mutate({
+      knowledgeBase,
+      status: knowledgeBase.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE',
+    });
+  }
+
+  function handleEditKnowledgeBase(knowledgeBase: KnowledgeBase): void {
+    const name = window.prompt('Knowledge base name', knowledgeBase.name);
+    const trimmedName = name?.trim();
+
+    if (!trimmedName || trimmedName === knowledgeBase.name) {
+      setOpenKnowledgeBaseMenuId(null);
+      setKnowledgeBaseMenuPosition(null);
+      return;
+    }
+
+    updateBaseMutation.mutate({
+      knowledgeBase,
+      name: trimmedName,
+    });
+    setOpenKnowledgeBaseMenuId(null);
+    setKnowledgeBaseMenuPosition(null);
+  }
+
+  function handleDeleteKnowledgeBase(knowledgeBase: KnowledgeBase): void {
+    if (!window.confirm(`Delete knowledge base "${knowledgeBase.name}"?`)) {
+      setOpenKnowledgeBaseMenuId(null);
+      setKnowledgeBaseMenuPosition(null);
+      return;
+    }
+
+    deleteBaseMutation.mutate(knowledgeBase.id);
+  }
+
+  return (
+    <AppShell activeItem="Knowledge Bases" activeSection="knowledge">
+      <PageHeader
+        description="Browse and manage knowledge bases and their files."
+        parentTitle="Knowledge"
+        title="Knowledge Bases"
+      />
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(320px,390px)_1fr] gap-4 overflow-auto px-6 pb-6">
+        <aside className="rounded-md border border-slate-200 bg-white">
+          <div className="flex items-center gap-3 border-b border-slate-200 p-4">
+            <FilterInput
+              onChange={setBaseKeyword}
+              placeholder="Search knowledge bases..."
+              value={baseKeyword}
+            />
+            <ActionButton
+              className="h-10 shrink-0"
+              disabled={createBaseMutation.isPending}
+              message="Knowledge base creation started"
+              onClick={handleCreateKnowledgeBase}
+            >
+              New
+            </ActionButton>
+          </div>
+          <div
+            className={cn(
+              knowledgeBases.length > 1
+                ? 'max-h-[calc(100vh-292px)] overflow-y-auto'
+                : 'overflow-visible',
+            )}
+          >
+            {knowledgeBasesQuery.isLoading ? (
+              <IntegrationTableState>
+                Loading knowledge bases...
+              </IntegrationTableState>
+            ) : knowledgeBasesQuery.isError ? (
+              <IntegrationTableState tone="danger">
+                {queryError}
+              </IntegrationTableState>
+            ) : knowledgeBases.length === 0 ? (
+              <IntegrationTableState>
+                No knowledge bases found.
+              </IntegrationTableState>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {knowledgeBases.map((knowledgeBase) => {
+                  const isSelected =
+                    knowledgeBase.id === selectedKnowledgeBaseId;
+                  const isActive = knowledgeBase.status === 'ACTIVE';
+                  const isChangingStatus =
+                    updateBaseMutation.isPending &&
+                    updateBaseMutation.variables?.knowledgeBase.id ===
+                      knowledgeBase.id;
+                  const isDeleting =
+                    deleteBaseMutation.isPending &&
+                    deleteBaseMutation.variables === knowledgeBase.id;
+
+                  return (
+                    <div
+                      className={cn(
+                        'flex w-full items-center gap-2.5 px-3 py-3 text-left transition hover:bg-blue-50',
+                        isSelected && 'bg-blue-50',
+                      )}
+                      key={knowledgeBase.id}
+                    >
+                      <button
+                        className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
+                        onClick={() => {
+                          setSelectedKnowledgeBaseId(knowledgeBase.id);
+                          setDocumentPage(1);
+                        }}
+                        type="button"
+                      >
+                        <span className="grid size-8 shrink-0 place-items-center rounded-md bg-indigo-50 text-blue-700">
+                          <Folder
+                            aria-hidden="true"
+                            className="fill-blue-700"
+                            size={18}
+                            strokeWidth={1.8}
+                          />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold text-slate-950">
+                            {knowledgeBase.name}
+                          </span>
+                          <span className="mt-1 block truncate text-xs text-slate-500">
+                            {knowledgeBase.description ?? 'Knowledge base'}
+                          </span>
+                        </span>
+                      </button>
+                      <button
+                        aria-label={
+                          isActive
+                            ? `Disable ${knowledgeBase.name}`
+                            : `Enable ${knowledgeBase.name}`
+                        }
+                        aria-pressed={isActive}
+                        className={cn(
+                          'relative h-5 w-9 shrink-0 rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60',
+                          isActive ? 'bg-indigo-500' : 'bg-slate-300',
+                        )}
+                        disabled={isChangingStatus || isDeleting}
+                        onClick={() => handleToggleKnowledgeBase(knowledgeBase)}
+                        title={isActive ? 'Disable' : 'Enable'}
+                        type="button"
+                      >
+                        <span
+                          className={cn(
+                            'absolute top-0.5 grid size-4 rounded-full bg-white shadow-sm transition',
+                            isActive ? 'left-[18px]' : 'left-0.5',
+                          )}
+                        />
+                      </button>
+                      <div className="relative shrink-0">
+                        <button
+                          aria-expanded={
+                            openKnowledgeBaseMenuId === knowledgeBase.id
+                          }
+                          aria-label={`More actions for ${knowledgeBase.name}`}
+                          className="grid size-7 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                          onClick={(event) => {
+                            const rect = event.currentTarget.getBoundingClientRect();
+                            setKnowledgeBaseMenuPosition({
+                              right: window.innerWidth - rect.right,
+                              top: rect.bottom + 4,
+                            });
+                            setOpenKnowledgeBaseMenuId((currentId) =>
+                              currentId === knowledgeBase.id
+                                ? null
+                                : knowledgeBase.id,
+                            );
+                          }}
+                          type="button"
+                        >
+                          <MoreVertical aria-hidden="true" size={16} />
+                        </button>
+                        {openKnowledgeBaseMenuId === knowledgeBase.id &&
+                        knowledgeBaseMenuPosition
+                          ? createPortal(
+                              <>
+                                <div
+                                  className="fixed inset-0 z-50"
+                                  onClick={() => {
+                                    setOpenKnowledgeBaseMenuId(null);
+                                    setKnowledgeBaseMenuPosition(null);
+                                  }}
+                                />
+                                <div
+                                  className="fixed z-[60] w-32 overflow-hidden rounded-md border border-slate-200 bg-white py-1 shadow-lg shadow-slate-200"
+                                  style={{
+                                    top: `${knowledgeBaseMenuPosition.top}px`,
+                                    right: `${knowledgeBaseMenuPosition.right}px`,
+                                  }}
+                                >
+                                  <button
+                                    className="block h-9 w-full px-3 text-left text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700"
+                                    onClick={() =>
+                                      handleEditKnowledgeBase(knowledgeBase)
+                                    }
+                                    type="button"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    className="block h-9 w-full px-3 text-left text-sm text-red-600 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                    disabled={isDeleting}
+                                    onClick={() =>
+                                      handleDeleteKnowledgeBase(knowledgeBase)
+                                    }
+                                    type="button"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </>,
+                              document.body,
+                            )
+                          : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </aside>
+
+        <section className="min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white">
+          {selectedKnowledgeBase ? (
+            <>
+              <div className="border-b border-slate-200 px-5 pt-5">
+                <div className="mb-4 flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="mb-4 flex items-center gap-2 text-xs text-slate-500">
+                      <span>Knowledge Bases</span>
+                      <ChevronRight aria-hidden="true" size={13} />
+                      <span className="truncate font-medium text-slate-700">
+                        Files
+                      </span>
+                    </div>
+                    <div className="flex min-w-0 items-center gap-4">
+                      <span className="grid size-11 shrink-0 place-items-center rounded-md bg-indigo-50 text-blue-700">
+                        <Folder
+                          aria-hidden="true"
+                          className="fill-blue-700"
+                          size={21}
+                          strokeWidth={1.8}
+                        />
+                      </span>
+                      <div className="min-w-0">
+                        <h2 className="truncate text-2xl font-semibold text-slate-950">
+                          {selectedKnowledgeBase.name}
+                        </h2>
+                        <p className="mt-1 truncate text-sm text-slate-600">
+                          {selectedKnowledgeBase.description ??
+                            'Knowledge base files and documents.'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <input
+                      className="hidden"
+                      onChange={(event) => {
+                        handleUploadFile(event.target.files?.[0]);
+                        event.currentTarget.value = '';
+                      }}
+                      ref={fileInputRef}
+                      type="file"
+                    />
+                    <ActionButton
+                      className="h-10 gap-2"
+                      disabled={uploadDocumentMutation.isPending}
+                      message="Upload file dialog opened"
+                      onClick={() => setIsUploadTypeDialogOpen(true)}
+                    >
+                      <Upload aria-hidden="true" size={15} />
+                      Upload File
+                    </ActionButton>
+                  </div>
+                </div>
+              </div>
+              <div className="p-4">
+                <Toolbar>
+                  <div className="flex flex-wrap gap-4">
+                    <FilterInput
+                      onChange={(keyword) => {
+                        setDocumentKeyword(keyword);
+                        setDocumentPage(1);
+                      }}
+                      placeholder="Search files..."
+                      value={documentKeyword}
+                    />
+                    <LabeledFilterSelect
+                      label="Category"
+                      onChange={(value) => {
+                        setDocumentType(value);
+                        setDocumentPage(1);
+                      }}
+                      options={[
+                        { label: 'Guide', value: 'GUIDE' },
+                        { label: 'SOP', value: 'SOP' },
+                        { label: 'Case', value: 'CASE' },
+                        { label: 'Reference', value: 'REFERENCE' },
+                        { label: 'Other', value: 'OTHER' },
+                      ]}
+                      selectedValue={documentType}
+                      value="All"
+                    />
+                    <LabeledFilterSelect
+                      label="Status"
+                      onChange={(value) => {
+                        setDocumentStatus(value);
+                        setDocumentPage(1);
+                      }}
+                      options={[
+                        { label: 'Uploaded', value: 'UPLOADED' },
+                        { label: 'Pending', value: 'PENDING' },
+                        { label: 'Processing', value: 'PROCESSING' },
+                        { label: 'Ready', value: 'READY' },
+                        { label: 'Failed', value: 'FAILED' },
+                        { label: 'Archived', value: 'ARCHIVED' },
+                      ]}
+                      selectedValue={documentStatus}
+                      value="All"
+                    />
+                  </div>
+                  <ActionButton
+                    className="h-10 w-28 px-0"
+                    message="Knowledge documents search executed"
+                    onClick={() => documentsQuery.refetch()}
+                  >
+                    Search
+                  </ActionButton>
+                </Toolbar>
+                {mutationError ? (
+                  <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {mutationError}
+                  </div>
+                ) : null}
+                <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+                  {documentsQuery.isLoading ? (
+                    <IntegrationTableState>
+                      Loading files...
+                    </IntegrationTableState>
+                  ) : documentsQuery.isError ? (
+                    <IntegrationTableState tone="danger">
+                      {queryError}
+                    </IntegrationTableState>
+                  ) : documents.length === 0 ? (
+                    <IntegrationTableState>
+                      No files found.
+                    </IntegrationTableState>
+                  ) : (
+                    <DataTable
+                      columns={documentColumns}
+                      containerClassName="rounded-none border-0"
+                      getRowKey={(document) => document.id}
+                      rows={documents}
+                    />
+                  )}
+                  <FilesPagination
+                    onPageChange={setDocumentPage}
+                    page={documentPage}
+                    pageSize={documentQueryParams.page_size}
+                    total={documentTotal}
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            <IntegrationTableState>
+              Select or create a knowledge base to manage files.
+            </IntegrationTableState>
+          )}
+        </section>
+      </div>
+      <UploadTypeDialog
+        isOpen={isUploadTypeDialogOpen}
+        onClose={() => setIsUploadTypeDialogOpen(false)}
+        onSelect={(type) => {
+          setUploadType(type);
+          setIsUploadTypeDialogOpen(false);
+          setIsUploadDialogOpen(true);
+        }}
+      />
+      <UploadFileDialog
+        isOpen={isUploadDialogOpen}
+        isSubmitting={uploadDocumentMutation.isPending}
+        onClose={() => setIsUploadDialogOpen(false)}
+        onSubmit={(values) => {
+          if (uploadType === 'local') {
+            if (values.file) {
+              handleUploadFile(values.file);
+            }
+            setIsUploadDialogOpen(false);
+          } else {
+            // Web URL upload - for now just close, no backend integration
+            setIsUploadDialogOpen(false);
+          }
+        }}
+        uploadType={uploadType}
+      />
+      <KnowledgeBaseFormDialog
+        errorMessage={
+          createBaseMutation.error instanceof ApiError
+            ? createBaseMutation.error.message
+            : undefined
+        }
+        isOpen={isCreateBaseDialogOpen}
+        isSubmitting={createBaseMutation.isPending}
+        onClose={() => {
+          createBaseMutation.reset();
+          setIsCreateBaseDialogOpen(false);
+        }}
+        onSubmit={handleSubmitKnowledgeBase}
+      />
+    </AppShell>
+  );
+}
+
+function formatScore(score: number): string {
+  return score.toFixed(2);
+}
+
+function getSearchResultCategory(result: RetrievalResult): string {
+  return result.metadata.tags[0] ?? result.citation.section ?? 'Knowledge';
+}
+
+export function KnowledgeTestPage(): ReactNode {
+  const [query, setQuery] = useState('');
+  const [searchMode, setSearchMode] = useState<'hybrid' | 'keyword'>('hybrid');
+  const [selectedKnowledgeBaseId, setSelectedKnowledgeBaseId] = useState('');
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const knowledgeBasesQuery = useQuery({
+    queryFn: () =>
+      listKnowledgeBases({
+        page: 1,
+        page_size: 100,
+        status: 'ACTIVE',
+      }),
+    queryKey: knowledgeQueryKeys.bases({
+      page: 1,
+      page_size: 100,
+      status: 'ACTIVE',
+    }),
+  });
+  const knowledgeBases = useMemo(
+    () => knowledgeBasesQuery.data?.items ?? [],
+    [knowledgeBasesQuery.data?.items],
+  );
+  const selectedKnowledgeBase =
+    knowledgeBases.find((item) => item.id === selectedKnowledgeBaseId) ??
+    knowledgeBases[0] ??
+    null;
+  const searchMutation = useMutation({
+    mutationFn: () =>
+      searchKnowledge({
+        include_trace: true,
+        knowledge_base_ids: selectedKnowledgeBase
+          ? [selectedKnowledgeBase.id]
+          : undefined,
+        query: query.trim(),
+        rerank: searchMode === 'hybrid',
+        top_k: 8,
+      }),
+  });
+  const searchResponse = searchMutation.data;
+  const results = searchResponse?.results ?? [];
+  const averageScore =
+    results.length === 0
+      ? 0
+      : results.reduce((total, result) => total + result.score, 0) /
+        results.length;
+  const searchError =
+    searchMutation.error instanceof ApiError
+      ? searchMutation.error.message
+      : 'Knowledge search could not be completed.';
+
+  useEffect(() => {
+    if (!selectedKnowledgeBaseId && knowledgeBases[0]) {
+      setSelectedKnowledgeBaseId(knowledgeBases[0].id);
+    }
+  }, [knowledgeBases, selectedKnowledgeBaseId]);
+
+  function handleSearch(): void {
+    if (!query.trim()) {
+      return;
+    }
+
+    searchMutation.mutate();
+  }
+
+  function handleClear(): void {
+    setQuery('');
+    searchMutation.reset();
+  }
+
+  return (
+    <AppShell activeItem="Test" activeSection="knowledge">
       <PageHeader
         actions={
-          <ActionButton message="Upload file dialog opened">
-            <Plus aria-hidden="true" size={15} />
-            Upload File
-          </ActionButton>
+          <>
+            <label className="relative inline-flex h-10 min-w-[280px] items-center gap-3 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 shadow-sm">
+              <span className="grid size-7 shrink-0 place-items-center rounded-md bg-violet-50 text-violet-700">
+                <BookOpen aria-hidden="true" size={16} />
+              </span>
+              <select
+                aria-label="Knowledge base"
+                className="min-w-0 flex-1 cursor-pointer appearance-none bg-transparent pr-7 font-semibold outline-none"
+                onChange={(event) =>
+                  setSelectedKnowledgeBaseId(event.target.value)
+                }
+                value={selectedKnowledgeBase?.id ?? ''}
+              >
+                {knowledgeBases.map((knowledgeBase) => (
+                  <option key={knowledgeBase.id} value={knowledgeBase.id}>
+                    {knowledgeBase.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                aria-hidden="true"
+                className="pointer-events-none absolute right-3 text-slate-500"
+                size={15}
+              />
+            </label>
+            <LinkButton className="h-10 px-4" href="/knowledge/files">
+              View Files
+              <ExternalLink aria-hidden="true" size={14} />
+            </LinkButton>
+          </>
         }
         actionsClassName="pr-4"
-        description="Browse and manage knowledge base files and documents."
+        description="Test knowledge base retrieval and evaluate search results."
         parentTitle="Knowledge"
-        title="Files"
+        title="Test"
       />
-      <div className="min-h-0 flex-1 overflow-auto px-6 pb-6">
-        <Toolbar>
-          <div className="flex flex-wrap gap-4">
-            <FilterInput placeholder="Search files..." />
-            <LabeledFilterSelect label="Category" value="All" />
-            <LabeledFilterSelect label="Type" value="All" />
-            <LabeledFilterSelect label="Status" value="All" />
-          </div>
-          <SearchButton />
-        </Toolbar>
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(360px,430px)_1fr] gap-4 overflow-auto px-6 pb-6">
         <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
-          <DataTable
-            columns={fileColumns}
-            containerClassName="rounded-none border-0"
-            getRowKey={(row) => row.fileName}
-            rows={files}
-          />
-          <FilesPagination />
+          <div className="border-b border-slate-200 px-5 py-4">
+            <h2 className="text-sm font-semibold text-slate-950">
+              1. Enter your query
+            </h2>
+          </div>
+          <div className="space-y-5 p-5">
+            <label className="block">
+              <span className="sr-only">Search query</span>
+              <textarea
+                className="h-36 w-full resize-none rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                maxLength={2000}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Ask a question or enter keywords..."
+                value={query}
+              />
+              <span className="mt-1 block text-right text-xs text-slate-500">
+                {query.length} / 2000
+              </span>
+            </label>
+
+            <div>
+              <div className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
+                Search Mode
+                <Info aria-hidden="true" size={14} />
+              </div>
+              <div className="inline-flex overflow-hidden rounded-md border border-slate-200 bg-white">
+                {[
+                  ['hybrid', 'Hybrid (Vector + Keyword)'],
+                  ['keyword', 'Keyword Only'],
+                ].map(([value, label]) => (
+                  <button
+                    className={cn(
+                      'h-10 px-4 text-sm font-medium transition',
+                      searchMode === value
+                        ? 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-500'
+                        : 'text-slate-700 hover:bg-slate-50',
+                    )}
+                    key={value}
+                    onClick={() => setSearchMode(value as 'hybrid' | 'keyword')}
+                    type="button"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button
+              className="flex h-12 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
+              type="button"
+            >
+              <span className="inline-flex items-center gap-2">
+                <Funnel aria-hidden="true" size={16} />
+                Filters (Optional)
+              </span>
+              <ChevronDown aria-hidden="true" size={16} />
+            </button>
+            <button
+              className="flex h-12 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
+              type="button"
+            >
+              <span className="inline-flex items-center gap-2">
+                <SlidersHorizontal aria-hidden="true" size={16} />
+                Advanced Options
+              </span>
+              <ChevronDown aria-hidden="true" size={16} />
+            </button>
+
+            <div className="grid grid-cols-2 gap-3">
+              <ActionButton
+                className="h-11 gap-2"
+                disabled={!query.trim() || searchMutation.isPending}
+                message="Knowledge search submitted"
+                onClick={handleSearch}
+              >
+                <Search aria-hidden="true" size={16} />
+                Search
+              </ActionButton>
+              <ActionButton
+                className="h-11 gap-2"
+                message="Knowledge search cleared"
+                onClick={handleClear}
+                variant="outline"
+              >
+                <RotateCcw aria-hidden="true" size={16} />
+                Clear
+              </ActionButton>
+            </div>
+
+            <div className="rounded-md border border-blue-100 bg-blue-50 px-4 py-3">
+              <div className="flex items-center justify-between text-sm font-semibold text-blue-800">
+                <span className="inline-flex items-center gap-2">
+                  <Info aria-hidden="true" size={15} />
+                  Tips
+                </span>
+                <button
+                  aria-label="Dismiss tips"
+                  className="text-slate-500 hover:text-slate-800"
+                  type="button"
+                >
+                  ×
+                </button>
+              </div>
+              <ul className="mt-2 space-y-1 text-xs leading-5 text-slate-600">
+                <li>Use natural language questions for better results</li>
+                <li>
+                  Be specific about the incident type, component, or error
+                </li>
+                <li>Add filters to narrow down results</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section className="min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white">
+          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-slate-950">
+                2. Search Results
+              </h2>
+              <Info aria-hidden="true" className="text-slate-500" size={14} />
+            </div>
+            <div className="flex items-center gap-4 text-sm">
+              <span className="text-slate-600">View</span>
+              <div className="inline-flex overflow-hidden rounded-md border border-slate-200">
+                <button
+                  aria-label="List view"
+                  className={cn(
+                    'grid size-9 place-items-center',
+                    viewMode === 'list'
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'text-slate-500',
+                  )}
+                  onClick={() => setViewMode('list')}
+                  type="button"
+                >
+                  <List aria-hidden="true" size={16} />
+                </button>
+                <button
+                  aria-label="Grid view"
+                  className={cn(
+                    'grid size-9 place-items-center border-l border-slate-200',
+                    viewMode === 'grid'
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'text-slate-500',
+                  )}
+                  onClick={() => setViewMode('grid')}
+                  type="button"
+                >
+                  <Grid2X2 aria-hidden="true" size={16} />
+                </button>
+              </div>
+              <span className="text-slate-600">Sort by</span>
+              <LabeledFilterSelect label="" value="Relevance" />
+            </div>
+          </div>
+          <div className="space-y-4 p-4">
+            <div className="grid grid-cols-4 gap-3">
+              {[
+                [String(results.length), 'Results'],
+                [
+                  searchResponse?.trace
+                    ? `${(searchResponse.trace.latency_ms / 1000).toFixed(2)} s`
+                    : '0.00 s',
+                  'Search Time',
+                ],
+                [formatScore(averageScore), 'Avg. Score'],
+                [searchMode === 'hybrid' ? 'Hybrid' : 'Keyword', 'Search Mode'],
+              ].map(([value, label]) => (
+                <div
+                  className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3"
+                  key={label}
+                >
+                  <p className="text-lg font-semibold text-blue-600">{value}</p>
+                  <p className="mt-1 text-xs text-slate-500">{label}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-between rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+              <span>
+                Showing results from{' '}
+                <span className="font-semibold">
+                  {selectedKnowledgeBase?.name ?? 'All'}
+                </span>{' '}
+                knowledge base
+              </span>
+              <span>Query rewritten</span>
+            </div>
+
+            {searchMutation.isPending ? (
+              <IntegrationTableState>
+                Searching knowledge...
+              </IntegrationTableState>
+            ) : searchMutation.isError ? (
+              <IntegrationTableState tone="danger">
+                {searchError}
+              </IntegrationTableState>
+            ) : results.length === 0 ? (
+              <IntegrationTableState>
+                Enter a query and run search to preview retrieval results.
+              </IntegrationTableState>
+            ) : (
+              <div className="space-y-3">
+                {results.map((result, index) => {
+                  const DocumentIcon = getDocumentTypeIcon(
+                    result.metadata.document_type ?? 'OTHER',
+                  );
+
+                  return (
+                    <article
+                      className="grid grid-cols-[36px_58px_1fr_auto] items-start gap-3 rounded-md border border-slate-200 bg-white px-3 py-3"
+                      key={result.chunk_id}
+                    >
+                      <span className="grid size-8 place-items-center rounded-md bg-slate-100 text-sm font-semibold text-slate-700">
+                        {index + 1}
+                      </span>
+                      <span className="rounded-md bg-emerald-100 px-2 py-1 text-center text-xs font-semibold text-emerald-700">
+                        {formatScore(result.score)}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-3">
+                          <DocumentIcon
+                            aria-hidden="true"
+                            className="shrink-0 text-blue-600"
+                            size={17}
+                          />
+                          <h3 className="truncate text-sm font-semibold text-slate-950">
+                            {result.citation.document_name}
+                          </h3>
+                        </div>
+                        <p className="mt-1 truncate text-xs text-slate-500">
+                          {getSearchResultCategory(result)} ·{' '}
+                          {result.metadata.document_type
+                            ? documentTypeLabels[result.metadata.document_type]
+                            : 'Document'}{' '}
+                          · Updated {result.citation.document_version}
+                        </p>
+                        <p className="mt-2 line-clamp-2 text-sm leading-5 text-slate-700">
+                          {result.citation.snippet ?? result.content}
+                        </p>
+                      </div>
+                      <div className="flex min-w-[100px] flex-col items-end gap-6">
+                        <span className="rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
+                          {getSearchResultCategory(result)}
+                        </span>
+                        <a
+                          className="inline-flex items-center gap-1 text-sm font-semibold text-blue-600 hover:text-blue-700"
+                          href={result.citation.source_url}
+                        >
+                          View
+                          <ExternalLink aria-hidden="true" size={13} />
+                        </a>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </section>
       </div>
     </AppShell>

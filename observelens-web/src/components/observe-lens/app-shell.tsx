@@ -82,7 +82,10 @@ export const secondaryNavigation: Record<PrimarySection, SecondaryNavItem[]> = {
     { href: '/entity/search', label: 'Search' },
     { href: '/entity/topology', label: 'Topology' },
   ],
-  knowledge: [{ href: '/knowledge/files', label: 'Files' }],
+  knowledge: [
+    { href: '/knowledge/files', label: 'Knowledge Bases' },
+    { href: '/knowledge/test', label: 'Test' },
+  ],
   settings: [
     { href: '/settings/models', label: 'Models' },
     { href: '/settings/notifications', label: 'Notifications' },

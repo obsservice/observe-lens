@@ -51,6 +51,27 @@ class DocumentStorage:
             path=path,
         )
 
+    async def save_bytes(
+        self, tenant_id: int, file_name: str, mime_type: str, data: bytes
+    ) -> StoredFile:
+        tenant_dir = self.settings.storage_path / str(tenant_id)
+        tenant_dir.mkdir(parents=True, exist_ok=True)
+        suffix = Path(file_name).suffix or ".txt"
+        path = tenant_dir / f"{uuid4()}{suffix}"
+        max_bytes = self.settings.max_file_size_mb * 1024 * 1024
+        if len(data) > max_bytes:
+            raise ValidationDomainError("Document is too large")
+        path.write_bytes(data)
+        digest = hashlib.sha256(data)
+        return StoredFile(
+            file_name=file_name,
+            mime_type=mime_type,
+            file_size=len(data),
+            content_hash=digest.hexdigest(),
+            storage_uri=str(path),
+            path=path,
+        )
+
     async def read_text(self, storage_uri: str) -> str:
         path = Path(storage_uri)
         return await to_thread(path.read_text, encoding="utf-8", errors="ignore")

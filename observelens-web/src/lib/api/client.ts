@@ -24,6 +24,11 @@ export class ApiError extends Error {
 
 interface ApiErrorResponse {
   code?: string;
+  error?: {
+    code?: string;
+    message?: string;
+    trace_id?: string;
+  };
   message?: string;
   request_id?: string;
 }
@@ -43,6 +48,29 @@ export function getApiBaseUrl(): string {
   return API_BASE_URL;
 }
 
+function buildContextHeaders(): Record<string, string> {
+  return {
+    'X-Tenant-Id': API_TENANT_ID,
+    'X-User-Id': API_USER_ID,
+  };
+}
+
+function buildApiError(
+  status: number,
+  errorResponse: ApiErrorResponse,
+): ApiError {
+  return new ApiError({
+    status,
+    code: errorResponse.error?.code ?? errorResponse.code ?? 'REQUEST_FAILED',
+    message:
+      errorResponse.error?.message ??
+      errorResponse.message ??
+      'The request could not be completed.',
+    requestId:
+      errorResponse.error?.trace_id ?? errorResponse.request_id ?? null,
+  });
+}
+
 export async function apiRequest<TResponse>(
   path: string,
   { body, headers, ...options }: RequestOptions = {},
@@ -52,8 +80,7 @@ export async function apiRequest<TResponse>(
     body: body === undefined ? undefined : JSON.stringify(body),
     headers: {
       Accept: 'application/json',
-      'X-Tenant-Id': API_TENANT_ID,
-      'X-User-Id': API_USER_ID,
+      ...buildContextHeaders(),
       ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       ...headers,
     },
@@ -63,12 +90,47 @@ export async function apiRequest<TResponse>(
     const errorResponse = (await response
       .json()
       .catch(() => ({}))) as ApiErrorResponse;
-    throw new ApiError({
-      status: response.status,
-      code: errorResponse.code ?? 'REQUEST_FAILED',
-      message: errorResponse.message ?? 'The request could not be completed.',
-      requestId:
-        errorResponse.request_id ?? response.headers.get('x-request-id'),
+    throw buildApiError(response.status, {
+      ...errorResponse,
+      request_id:
+        errorResponse.request_id ??
+        response.headers.get('x-request-id') ??
+        undefined,
+    });
+  }
+
+  if (response.status === 204) {
+    return undefined as TResponse;
+  }
+
+  return (await response.json()) as TResponse;
+}
+
+export async function apiFormRequest<TResponse>(
+  path: string,
+  formData: FormData,
+  { headers, ...options }: Omit<RequestOptions, 'body'> = {},
+): Promise<TResponse> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    body: formData,
+    headers: {
+      Accept: 'application/json',
+      ...buildContextHeaders(),
+      ...headers,
+    },
+  });
+
+  if (!response.ok) {
+    const errorResponse = (await response
+      .json()
+      .catch(() => ({}))) as ApiErrorResponse;
+    throw buildApiError(response.status, {
+      ...errorResponse,
+      request_id:
+        errorResponse.request_id ??
+        response.headers.get('x-request-id') ??
+        undefined,
     });
   }
 

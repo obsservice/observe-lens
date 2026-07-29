@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+import httpx
 from fastapi import UploadFile
 
 from observelens_knowledge_base.common.context import RequestContext
@@ -110,6 +112,60 @@ class DocumentService:
             status=DocumentStatus.PENDING,
             tags=tags,
             meta=metadata,
+            created_by=ctx.user_id,
+        )
+        self.repository.add(document)
+        await self.repository.session.flush()
+        version, task = await self._create_version_and_task(
+            ctx, document, stored_file, IndexTaskType.INDEX, kb.embedding_model
+        )
+        await self._run_index_task(document, version, task)
+        return UploadDocumentResponse(
+            document=DocumentResponse.model_validate(document),
+            version=DocumentVersionResponse.model_validate(version),
+            index_task=IndexTaskResponse.model_validate(task),
+        )
+
+    async def upload_from_url(
+        self,
+        ctx: RequestContext,
+        knowledge_base_id: UUID,
+        url: str,
+        name: str,
+        document_type: DocumentType,
+        tags: list[str],
+        metadata: dict[str, Any],
+    ) -> UploadDocumentResponse:
+        kb = await self._ensure_knowledge_base(ctx, knowledge_base_id)
+
+        # Download content from URL
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(url, follow_redirects=True)
+                response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise ValidationDomainError(f"Failed to fetch URL: {exc}") from exc
+
+        content_bytes = response.content
+        content_type = response.headers.get("content-type", "application/octet-stream").split(";")[0].strip()
+        # Derive filename from URL or name
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        file_name = Path(parsed.path).name or name
+
+        # Save to storage
+        stored_file = await self.storage.save_bytes(ctx.tenant_id, file_name, content_type, content_bytes)
+        self._ensure_supported_mime_type(stored_file.mime_type)
+
+        document = DocumentModel(
+            tenant_id=ctx.tenant_id,
+            knowledge_base_id=knowledge_base_id,
+            name=name,
+            document_type=document_type,
+            source_type=DocumentSourceType.URL,
+            status=DocumentStatus.PENDING,
+            tags=tags,
+            meta={**metadata, "source_url": url},
             created_by=ctx.user_id,
         )
         self.repository.add(document)

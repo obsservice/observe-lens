@@ -90,6 +90,14 @@ class UploadDocumentResponse(BaseModel):
     index_task: IndexTaskResponse
 
 
+class UploadFromUrlRequest(BaseModel):
+    url: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    document_type: DocumentType
+    tags: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class CreateDocumentVersionResponse(BaseModel):
     version: DocumentVersionResponse
     index_task: IndexTaskResponse

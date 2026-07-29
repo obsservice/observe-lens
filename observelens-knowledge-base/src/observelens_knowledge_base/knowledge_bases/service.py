@@ -1,10 +1,18 @@
 from uuid import UUID
 
+from sqlalchemy import delete, select
+
 from observelens_knowledge_base.common.context import RequestContext
 from observelens_knowledge_base.common.enums import KnowledgeBaseStatus
 from observelens_knowledge_base.common.exceptions import ConflictError, ResourceNotFoundError
 from observelens_knowledge_base.config import Settings
-from observelens_knowledge_base.database.models import KnowledgeBaseModel
+from observelens_knowledge_base.database.models import (
+    DocumentChunkModel,
+    DocumentModel,
+    DocumentVersionModel,
+    IndexTaskModel,
+    KnowledgeBaseModel,
+)
 from observelens_knowledge_base.knowledge_bases.repository import KnowledgeBaseRepository
 from observelens_knowledge_base.knowledge_bases.schemas import (
     CreateKnowledgeBaseRequest,
@@ -73,7 +81,60 @@ class KnowledgeBaseService:
 
     async def delete(self, ctx: RequestContext, knowledge_base_id: UUID) -> None:
         model = await self._get_model(ctx, knowledge_base_id)
-        await self.repository.session.delete(model)
+        session = self.repository.session
+
+        # Collect document IDs for this knowledge base
+        doc_ids = list(
+            (
+                await session.scalars(
+                    select(DocumentModel.id).where(
+                        DocumentModel.knowledge_base_id == knowledge_base_id
+                    )
+                )
+            ).all()
+        )
+
+        if doc_ids:
+            # Delete chunks for all document versions belonging to these documents
+            version_ids = list(
+                (
+                    await session.scalars(
+                        select(DocumentVersionModel.id).where(
+                            DocumentVersionModel.document_id.in_(doc_ids)
+                        )
+                    )
+                ).all()
+            )
+            if version_ids:
+                await session.execute(
+                    delete(DocumentChunkModel).where(
+                        DocumentChunkModel.document_version_id.in_(version_ids)
+                    )
+                )
+            # Delete index tasks
+            await session.execute(
+                delete(IndexTaskModel).where(IndexTaskModel.document_id.in_(doc_ids))
+            )
+            # Delete document versions
+            await session.execute(
+                delete(DocumentVersionModel).where(
+                    DocumentVersionModel.document_id.in_(doc_ids)
+                )
+            )
+            # Delete chunks referenced by knowledge_base_id (not via version)
+            await session.execute(
+                delete(DocumentChunkModel).where(
+                    DocumentChunkModel.knowledge_base_id == knowledge_base_id
+                )
+            )
+            # Delete documents
+            await session.execute(
+                delete(DocumentModel).where(
+                    DocumentModel.knowledge_base_id == knowledge_base_id
+                )
+            )
+
+        await session.delete(model)
 
     async def _get_model(self, ctx: RequestContext, knowledge_base_id: UUID) -> KnowledgeBaseModel:
         model = await self.repository.get(ctx.tenant_id, knowledge_base_id)
