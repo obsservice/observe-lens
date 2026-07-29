@@ -49,6 +49,26 @@ import {
   type KnowledgeDocument,
   type RetrievalResult,
 } from '@/lib/api/knowledge';
+import {
+  createModel,
+  deleteModel,
+  listModelProviders,
+  listModelStatuses,
+  listModels,
+  settingsQueryKeys,
+  updateModel,
+  type ModelConfig,
+  type ModelWriteRequest,
+  type Option as SettingsOption,
+  createNotification,
+  deleteNotification,
+  listNotificationTypes,
+  listNotifications,
+  notificationQueryKeys,
+  updateNotification,
+  type NotificationConfig,
+  type NotificationWriteRequest,
+} from '@/lib/api/settings';
 import { ApiError, getApiBaseUrl } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -5255,15 +5275,523 @@ export function KnowledgeTestPage(): ReactNode {
   );
 }
 
+const modelFormSchema = z.object({
+  credential_ref: z
+    .string()
+    .trim()
+    .optional(),
+  endpoint: z
+    .string()
+    .trim()
+    .optional(),
+  model_name: z
+    .string()
+    .trim()
+    .min(1, 'Model name is required.')
+    .max(128, 'Model name must be 128 characters or fewer.'),
+  name: z
+    .string()
+    .trim()
+    .min(1, 'Name is required.')
+    .max(128, 'Name must be 128 characters or fewer.'),
+  provider: z
+    .string()
+    .trim()
+    .min(1, 'Provider is required.'),
+});
+
+type ModelFormValues = z.infer<typeof modelFormSchema>;
+
+function ModelFormDialog({
+  errorMessage,
+  initialValues,
+  isEditMode = false,
+  isSubmitting,
+  isOpen,
+  onClose,
+  onSubmit,
+  providerOptions,
+}: {
+  errorMessage?: string;
+  initialValues?: ModelFormValues | null;
+  isEditMode?: boolean;
+  isSubmitting: boolean;
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (values: ModelFormValues) => Promise<void>;
+  providerOptions: SettingsOption[];
+}): ReactNode {
+  const {
+    formState: { errors },
+    handleSubmit,
+    register,
+    reset,
+  } = useForm<ModelFormValues>({
+    defaultValues: initialValues ?? {
+      credential_ref: '',
+      endpoint: '',
+      model_name: '',
+      name: '',
+      provider: 'OPENAI',
+    },
+    resolver: zodResolver(modelFormSchema),
+  });
+
+  useEffect(() => {
+    if (initialValues) {
+      reset(initialValues);
+    }
+  }, [initialValues, reset]);
+
+  const closeDialog = () => {
+    if (isSubmitting) {
+      return;
+    }
+    reset();
+    onClose();
+  };
+
+  if (!isOpen) {
+    return null;
+  }
+
+  return (
+    <div
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 px-4"
+      role="dialog"
+    >
+      <div className="w-full max-w-[520px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl shadow-slate-300/40">
+        <div className="flex items-start justify-between border-b border-slate-200 px-6 py-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">
+              {isEditMode ? 'Edit Model' : 'New Model'}
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {isEditMode
+                ? 'Update AI model configuration.'
+                : 'Configure a new AI model for ObserveLens.'}
+            </p>
+          </div>
+          <button
+            aria-label="Close model dialog"
+            className="grid size-8 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+            onClick={closeDialog}
+            type="button"
+          >
+            ×
+          </button>
+        </div>
+
+        <form
+          className="space-y-5 px-6 py-5"
+          onSubmit={(event) => {
+            void handleSubmit(onSubmit)(event);
+          }}
+        >
+          <label className="block">
+            <RequiredLabel>Name</RequiredLabel>
+            <input
+              className={cn(
+                'mt-2 h-10 w-full rounded-md border bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100',
+                errors.name ? 'border-red-300' : 'border-slate-200',
+                isEditMode && 'cursor-not-allowed bg-slate-50 text-slate-500',
+              )}
+              placeholder="Production GPT-4o"
+              readOnly={isEditMode}
+              {...register('name')}
+            />
+            {errors.name ? (
+              <span className="mt-1 block text-xs text-red-600">
+                {errors.name.message}
+              </span>
+            ) : null}
+          </label>
+
+          <label className="block">
+            <RequiredLabel>Provider</RequiredLabel>
+            <select
+              className={cn(
+                'mt-2 h-10 w-full rounded-md border bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100',
+                errors.provider ? 'border-red-300' : 'border-slate-200',
+              )}
+              {...register('provider')}
+            >
+              {providerOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {errors.provider ? (
+              <span className="mt-1 block text-xs text-red-600">
+                {errors.provider.message}
+              </span>
+            ) : null}
+          </label>
+
+          <label className="block">
+            <RequiredLabel>Model Name</RequiredLabel>
+            <input
+              className={cn(
+                'mt-2 h-10 w-full rounded-md border bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100',
+                errors.model_name ? 'border-red-300' : 'border-slate-200',
+              )}
+              placeholder="gpt-4o-2024-05-13"
+              {...register('model_name')}
+            />
+            {errors.model_name ? (
+              <span className="mt-1 block text-xs text-red-600">
+                {errors.model_name.message}
+              </span>
+            ) : null}
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-medium text-slate-800">
+              Endpoint
+            </span>
+            <input
+              className={cn(
+                'mt-2 h-10 w-full rounded-md border bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100',
+                errors.endpoint ? 'border-red-300' : 'border-slate-200',
+              )}
+              placeholder="https://api.openai.com/v1"
+              {...register('endpoint')}
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-medium text-slate-800">
+              API Key
+            </span>
+            <input
+              className={cn(
+                'mt-2 h-10 w-full rounded-md border bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100',
+                errors.credential_ref ? 'border-red-300' : 'border-slate-200',
+              )}
+              placeholder="secret/openai-api-key"
+              {...register('credential_ref')}
+            />
+          </label>
+
+          {errorMessage ? (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {errorMessage}
+            </div>
+          ) : null}
+
+          <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
+            <button
+              className="inline-flex h-9 items-center justify-center rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSubmitting}
+              onClick={closeDialog}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className="inline-flex h-9 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSubmitting}
+              type="submit"
+            >
+              {isSubmitting
+                ? isEditMode
+                  ? 'Saving...'
+                  : 'Creating...'
+                : isEditMode
+                  ? 'Save Changes'
+                  : 'Create Model'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export function SettingsModelsPage(): ReactNode {
+  const queryClient = useQueryClient();
+  const [page, setPage] = useState(1);
+  const [keyword, setKeyword] = useState('');
+  const [providerFilter, setProviderFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [isCreateModelDialogOpen, setIsCreateModelDialogOpen] = useState(false);
+  const [editingModel, setEditingModel] = useState<ModelConfig | null>(null);
+
+  const queryParams = { page, page_size: 20 };
+  const modelsQuery = useQuery({
+    queryFn: () => listModels(queryParams),
+    queryKey: settingsQueryKeys.models(queryParams),
+  });
+  const { data: providerOptions = [] } = useQuery({
+    queryFn: listModelProviders,
+    queryKey: [...settingsQueryKeys.all, 'providers'],
+  });
+  const { data: statusOptions = [] } = useQuery({
+    queryFn: listModelStatuses,
+    queryKey: [...settingsQueryKeys.all, 'statuses'],
+  });
+
+  const deleteModelMutation = useMutation({
+    mutationFn: deleteModel,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: settingsQueryKeys.all,
+      });
+    },
+  });
+  const createModelMutation = useMutation({
+    mutationFn: createModel,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: settingsQueryKeys.all,
+      });
+      setIsCreateModelDialogOpen(false);
+    },
+  });
+  const updateModelMutation = useMutation({
+    mutationFn: ({ id, request }: { id: number; request: ModelWriteRequest }) =>
+      updateModel(id, request),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: settingsQueryKeys.all,
+      });
+      setEditingModel(null);
+    },
+  });
+
+  const allModels = modelsQuery.data?.items ?? [];
+  const total = modelsQuery.data?.total ?? 0;
+  const pageSize = modelsQuery.data?.page_size ?? 20;
+
+  // Client-side filtering for keyword, provider, status since the API
+  // does not yet support these as query params
+  const filteredModels = useMemo(
+    () =>
+      allModels.filter((model) => {
+        if (
+          keyword &&
+          !model.name.toLowerCase().includes(keyword.toLowerCase()) &&
+          !model.provider.toLowerCase().includes(keyword.toLowerCase())
+        ) {
+          return false;
+        }
+        if (providerFilter && model.provider !== providerFilter) {
+          return false;
+        }
+        if (statusFilter && model.status !== statusFilter) {
+          return false;
+        }
+        return true;
+      }),
+    [allModels, keyword, providerFilter, statusFilter],
+  );
+
+  const queryError =
+    modelsQuery.error instanceof ApiError
+      ? modelsQuery.error.message
+      : deleteModelMutation.error instanceof ApiError
+        ? deleteModelMutation.error.message
+        : 'Models could not be loaded.';
+
+  function handleDeleteModel(model: ModelConfig): void {
+    if (!window.confirm(`Delete model "${model.name}"?`)) {
+      return;
+    }
+    deleteModelMutation.mutate(model.id);
+  }
+
+  function handleToggleModelStatus(model: ModelConfig): void {
+    updateModelMutation.mutate({
+      id: model.id,
+      request: {
+        name: model.name,
+        provider: model.provider,
+        model_name: model.model_name,
+        endpoint: model.endpoint,
+        credential_ref: model.credential,
+        status: model.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE',
+      },
+    });
+  }
+
+  const modelColumns: DataColumn<ModelConfig>[] = [
+    {
+      className: 'w-[18%]',
+      header: 'Model Name',
+      render: (model) => (
+        <div className="flex items-center gap-3">
+          <span
+            className={cn(
+              'grid size-8 place-items-center text-lg font-black',
+              providerLogoClassNames[model.provider] ?? 'text-slate-950',
+            )}
+          >
+            {providerLogoText[model.provider] ?? model.provider[0]}
+          </span>
+          <div className="min-w-0">
+            <p className="truncate font-semibold text-slate-950">
+              {model.name}
+              {model.is_default ? (
+                <span className="ml-2 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-700">
+                  Default
+                </span>
+              ) : null}
+            </p>
+            <p className="mt-1 truncate text-xs text-slate-600">
+              {model.model_name}
+            </p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      className: 'w-[10%]',
+      header: 'Provider',
+      render: (model) => (
+        <span className="inline-flex items-center gap-2">
+          <span
+            className={cn(
+              'text-lg font-black',
+              providerLogoClassNames[model.provider] ?? 'text-slate-950',
+            )}
+          >
+            {providerLogoText[model.provider] ?? model.provider[0]}
+          </span>
+          {model.provider}
+        </span>
+      ),
+    },
+    {
+      className: 'w-[18%]',
+      header: 'Endpoint',
+      render: (model) => (
+        <span className="truncate text-xs text-slate-600">
+          {model.endpoint ?? '—'}
+        </span>
+      ),
+    },
+    {
+      className: 'w-[14%]',
+      header: 'API Key',
+      render: (model) => {
+        const key = model.credential;
+        const masked =
+          key && key.length > 12
+            ? `${key.slice(0, 6)}***${key.slice(-6)}`
+            : key ?? '—';
+        return (
+          <span className="truncate font-mono text-xs text-slate-600">
+            {masked}
+          </span>
+        );
+      },
+    },
+    {
+      className: 'w-[8%]',
+      header: 'Status',
+      render: (model) => {
+        const isActive = model.status === 'ACTIVE';
+        const isToggling =
+          updateModelMutation.isPending &&
+          updateModelMutation.variables?.id === model.id;
+        return (
+          <button
+            aria-label={
+              isActive
+                ? `Disable ${model.name}`
+                : `Enable ${model.name}`
+            }
+            aria-pressed={isActive}
+            className={cn(
+              'relative h-5 w-9 shrink-0 rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60',
+              isActive ? 'bg-indigo-500' : 'bg-slate-300',
+            )}
+            disabled={isToggling}
+            onClick={() => handleToggleModelStatus(model)}
+            title={isActive ? 'Disable' : 'Enable'}
+            type="button"
+          >
+            <span
+              className={cn(
+                'absolute top-0.5 grid size-4 rounded-full bg-white shadow-sm transition',
+                isActive ? 'left-[18px]' : 'left-0.5',
+              )}
+            />
+          </button>
+        );
+      },
+    },
+    {
+      className: 'w-[10%]',
+      header: 'Author',
+      render: (model) => (
+        <div className="flex min-w-0 items-center gap-2">
+          <span
+            className={cn(
+              'grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold text-white',
+              getAuthorClassName(model.created_by),
+            )}
+          >
+            {String(model.created_by).slice(-1)}
+          </span>
+          <span className="truncate text-xs text-slate-600">
+            user-{model.created_by}
+          </span>
+        </div>
+      ),
+    },
+    {
+      className: 'w-[12%]',
+      header: 'Updated At',
+      render: (model) => formatKnowledgeDate(model.updated_at),
+    },
+    {
+      className: 'w-[10%]',
+      header: 'Actions',
+      render: (model) => (
+        <div className="flex items-center gap-2">
+          <ActionButton
+            aria-label={`Edit ${model.name}`}
+            className="size-8 border-0 bg-transparent p-0 text-blue-600 shadow-none hover:bg-slate-100 hover:text-blue-700"
+            message={`${model.name} editor opened`}
+            onClick={() => setEditingModel(model)}
+            size="sm"
+            variant="ghost"
+          >
+            ✎
+          </ActionButton>
+          <ActionButton
+            aria-label={`Delete ${model.name}`}
+            className="size-8 border-0 bg-transparent p-0 text-red-600 shadow-none hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={
+              deleteModelMutation.isPending &&
+              deleteModelMutation.variables === model.id
+            }
+            message={`${model.name} deleted`}
+            onClick={() => handleDeleteModel(model)}
+            size="sm"
+            variant="ghost"
+          >
+            <Trash2 aria-hidden="true" size={15} />
+          </ActionButton>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <AppShell activeItem="Models" activeSection="settings">
       <PageHeader
         actions={
-          <ActionButton message="Add model dialog opened">
-            <Plus aria-hidden="true" size={15} />
-            Add Model
-          </ActionButton>
+          <button
+            className="inline-flex h-10 w-28 items-center justify-center rounded-md bg-blue-600 px-0 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2"
+            onClick={() => setIsCreateModelDialogOpen(true)}
+            type="button"
+          >
+            New
+          </button>
         }
         actionsClassName="pr-4"
         description="Manage and configure AI models used by ObserveLens."
@@ -5273,36 +5801,576 @@ export function SettingsModelsPage(): ReactNode {
       <div className="min-h-0 flex-1 overflow-auto px-6 pb-6">
         <Toolbar>
           <div className="flex flex-wrap gap-4">
-            <FilterInput placeholder="Search models by name or provider..." />
-            <LabeledFilterSelect label="Provider" value="All" />
-            <LabeledFilterSelect label="Status" value="All" />
-            <LabeledFilterSelect label="Capabilities" value="All" />
+            <FilterInput
+              onChange={setKeyword}
+              placeholder="Search models by name or provider..."
+              value={keyword}
+            />
+            <LabeledFilterSelect
+              label="Provider"
+              onChange={setProviderFilter}
+              options={providerOptions}
+              selectedValue={providerFilter}
+              value="All"
+            />
+            <LabeledFilterSelect
+              label="Status"
+              onChange={setStatusFilter}
+              options={statusOptions}
+              selectedValue={statusFilter}
+              value="All"
+            />
           </div>
-          <SearchButton />
+          <ActionButton
+            className="h-10 w-28 px-0"
+            message="Models search executed"
+            onClick={() => modelsQuery.refetch()}
+          >
+            Search
+          </ActionButton>
         </Toolbar>
+        {queryError && modelsQuery.isError ? (
+          <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {queryError}
+          </div>
+        ) : null}
         <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
-          <DataTable
-            columns={modelColumns}
-            containerClassName="rounded-none border-0"
-            getRowKey={(row) => `${row.provider}-${row.model}`}
-            rows={models}
+          {modelsQuery.isLoading ? (
+            <IntegrationTableState>
+              Loading models...
+            </IntegrationTableState>
+          ) : modelsQuery.isError ? (
+            <IntegrationTableState tone="danger">
+              {queryError}
+            </IntegrationTableState>
+          ) : filteredModels.length === 0 ? (
+            <IntegrationTableState>
+              No models found.
+            </IntegrationTableState>
+          ) : (
+            <DataTable
+              columns={modelColumns}
+              containerClassName="rounded-none border-0"
+              getRowKey={(model) => String(model.id)}
+              rows={filteredModels}
+            />
+          )}
+          <FilesPagination
+            onPageChange={setPage}
+            page={page}
+            pageSize={pageSize}
+            total={total}
           />
-          <ModelsPagination />
         </section>
       </div>
+      <ModelFormDialog
+        errorMessage={
+          createModelMutation.error instanceof ApiError
+            ? createModelMutation.error.message
+            : undefined
+        }
+        isOpen={isCreateModelDialogOpen}
+        isSubmitting={createModelMutation.isPending}
+        onClose={() => {
+          createModelMutation.reset();
+          setIsCreateModelDialogOpen(false);
+        }}
+        onSubmit={async (values) => {
+          await createModelMutation.mutateAsync({
+            credential_ref: values.credential_ref?.trim() || null,
+            endpoint: values.endpoint?.trim() || null,
+            model_name: values.model_name,
+            name: values.name,
+            provider: values.provider,
+          });
+        }}
+        providerOptions={providerOptions}
+      />
+      <ModelFormDialog
+        errorMessage={
+          updateModelMutation.error instanceof ApiError
+            ? updateModelMutation.error.message
+            : undefined
+        }
+        initialValues={
+          editingModel
+            ? {
+                credential_ref: editingModel.credential ?? '',
+                endpoint: editingModel.endpoint ?? '',
+                model_name: editingModel.model_name,
+                name: editingModel.name,
+                provider: editingModel.provider,
+              }
+            : null
+        }
+        isEditMode
+        isOpen={editingModel !== null}
+        isSubmitting={updateModelMutation.isPending}
+        onClose={() => {
+          updateModelMutation.reset();
+          setEditingModel(null);
+        }}
+        onSubmit={async (values) => {
+          if (!editingModel) {
+            return;
+          }
+          await updateModelMutation.mutateAsync({
+            id: editingModel.id,
+            request: {
+              credential_ref: values.credential_ref?.trim() || null,
+              endpoint: values.endpoint?.trim() || null,
+              model_name: values.model_name,
+              name: values.name,
+              provider: values.provider,
+            },
+          });
+        }}
+        providerOptions={providerOptions}
+      />
     </AppShell>
   );
 }
 
+const notificationFormSchema = z.object({
+  channel_type: z
+    .string()
+    .trim()
+    .min(1, 'Type is required.'),
+  credential_ref: z
+    .string()
+    .trim()
+    .optional(),
+  name: z
+    .string()
+    .trim()
+    .min(1, 'Name is required.')
+    .max(128, 'Name must be 128 characters or fewer.'),
+  target: z
+    .string()
+    .trim()
+    .min(1, 'Target is required.'),
+});
+
+type NotificationFormValues = z.infer<typeof notificationFormSchema>;
+
+function NotificationFormDialog({
+  errorMessage,
+  initialValues,
+  isEditMode = false,
+  isSubmitting,
+  isOpen,
+  onClose,
+  onSubmit,
+  typeOptions,
+}: {
+  errorMessage?: string;
+  initialValues?: NotificationFormValues | null;
+  isEditMode?: boolean;
+  isSubmitting: boolean;
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (values: NotificationFormValues) => Promise<void>;
+  typeOptions: SettingsOption[];
+}): ReactNode {
+  const {
+    formState: { errors },
+    handleSubmit,
+    register,
+    reset,
+  } = useForm<NotificationFormValues>({
+    defaultValues: initialValues ?? {
+      channel_type: 'WEBHOOK',
+      credential_ref: '',
+      name: '',
+      target: '',
+    },
+    resolver: zodResolver(notificationFormSchema),
+  });
+
+  useEffect(() => {
+    if (initialValues) {
+      reset(initialValues);
+    }
+  }, [initialValues, reset]);
+
+  const closeDialog = () => {
+    if (isSubmitting) {
+      return;
+    }
+    reset();
+    onClose();
+  };
+
+  if (!isOpen) {
+    return null;
+  }
+
+  return (
+    <div
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 px-4"
+      role="dialog"
+    >
+      <div className="w-full max-w-[520px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl shadow-slate-300/40">
+        <div className="flex items-start justify-between border-b border-slate-200 px-6 py-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">
+              {isEditMode ? 'Edit Notification' : 'New Notification'}
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {isEditMode
+                ? 'Update notification webhook configuration.'
+                : 'Configure a notification webhook for alerts and updates.'}
+            </p>
+          </div>
+          <button
+            aria-label="Close notification dialog"
+            className="grid size-8 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+            onClick={closeDialog}
+            type="button"
+          >
+            ×
+          </button>
+        </div>
+
+        <form
+          className="space-y-5 px-6 py-5"
+          onSubmit={(event) => {
+            void handleSubmit(onSubmit)(event);
+          }}
+        >
+          <label className="block">
+            <RequiredLabel>Name</RequiredLabel>
+            <input
+              className={cn(
+                'mt-2 h-10 w-full rounded-md border bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100',
+                errors.name ? 'border-red-300' : 'border-slate-200',
+                isEditMode && 'cursor-not-allowed bg-slate-50 text-slate-500',
+              )}
+              placeholder="Incidents Webhook"
+              readOnly={isEditMode}
+              {...register('name')}
+            />
+            {errors.name ? (
+              <span className="mt-1 block text-xs text-red-600">
+                {errors.name.message}
+              </span>
+            ) : null}
+          </label>
+
+          <label className="block">
+            <RequiredLabel>Type</RequiredLabel>
+            <select
+              className={cn(
+                'mt-2 h-10 w-full rounded-md border bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100',
+                errors.channel_type ? 'border-red-300' : 'border-slate-200',
+              )}
+              {...register('channel_type')}
+            >
+              {typeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <RequiredLabel>Target URL</RequiredLabel>
+            <input
+              className={cn(
+                'mt-2 h-10 w-full rounded-md border bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100',
+                errors.target ? 'border-red-300' : 'border-slate-200',
+              )}
+              placeholder="https://hooks.company.com/observe/incidents"
+              {...register('target')}
+            />
+            {errors.target ? (
+              <span className="mt-1 block text-xs text-red-600">
+                {errors.target.message}
+              </span>
+            ) : null}
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-medium text-slate-800">
+              Token
+            </span>
+            <input
+              className={cn(
+                'mt-2 h-10 w-full rounded-md border bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100',
+                errors.credential_ref ? 'border-red-300' : 'border-slate-200',
+              )}
+              placeholder="secret/webhook-token"
+              {...register('credential_ref')}
+            />
+          </label>
+
+          {errorMessage ? (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {errorMessage}
+            </div>
+          ) : null}
+
+          <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
+            <button
+              className="inline-flex h-9 items-center justify-center rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSubmitting}
+              onClick={closeDialog}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className="inline-flex h-9 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSubmitting}
+              type="submit"
+            >
+              {isSubmitting
+                ? isEditMode
+                  ? 'Saving...'
+                  : 'Creating...'
+                : isEditMode
+                  ? 'Save Changes'
+                  : 'Create Notification'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export function SettingsNotificationsPage(): ReactNode {
+  const queryClient = useQueryClient();
+  const [page, setPage] = useState(1);
+  const [draftKeyword, setDraftKeyword] = useState('');
+  const [appliedKeyword, setAppliedKeyword] = useState('');
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [editingNotification, setEditingNotification] =
+    useState<NotificationConfig | null>(null);
+
+  const queryParams = { page, page_size: 20 };
+  const notificationsQuery = useQuery({
+    queryFn: () => listNotifications(queryParams),
+    queryKey: notificationQueryKeys.list(queryParams),
+  });
+  const { data: notificationTypeOptions = [] } = useQuery({
+    queryFn: listNotificationTypes,
+    queryKey: [...notificationQueryKeys.all, 'types'],
+  });
+
+  const deleteNotificationMutation = useMutation({
+    mutationFn: deleteNotification,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: notificationQueryKeys.all,
+      });
+    },
+  });
+  const updateNotificationMutation = useMutation({
+    mutationFn: ({
+      id,
+      request,
+    }: {
+      id: number;
+      request: NotificationWriteRequest;
+    }) => updateNotification(id, request),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: notificationQueryKeys.all,
+      });
+      setEditingNotification(null);
+    },
+  });
+  const createNotificationMutation = useMutation({
+    mutationFn: createNotification,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: notificationQueryKeys.all,
+      });
+      setIsCreateDialogOpen(false);
+    },
+  });
+
+  const allNotifications = notificationsQuery.data?.items ?? [];
+  const total = notificationsQuery.data?.total ?? 0;
+  const pageSize = notificationsQuery.data?.page_size ?? 20;
+
+  const filteredNotifications = useMemo(
+    () =>
+      allNotifications.filter((notification) => {
+        if (
+          appliedKeyword &&
+          !notification.name
+            .toLowerCase()
+            .includes(appliedKeyword.toLowerCase())
+        ) {
+          return false;
+        }
+        return true;
+      }),
+    [allNotifications, appliedKeyword],
+  );
+
+  const queryError =
+    notificationsQuery.error instanceof ApiError
+      ? notificationsQuery.error.message
+      : deleteNotificationMutation.error instanceof ApiError
+        ? deleteNotificationMutation.error.message
+        : updateNotificationMutation.error instanceof ApiError
+          ? updateNotificationMutation.error.message
+          : 'Notifications could not be loaded.';
+
+  function handleDeleteNotification(notification: NotificationConfig): void {
+    if (!window.confirm(`Delete notification "${notification.name}"?`)) {
+      return;
+    }
+    deleteNotificationMutation.mutate(notification.id);
+  }
+
+  function handleToggleNotificationStatus(notification: NotificationConfig): void {
+    updateNotificationMutation.mutate({
+      id: notification.id,
+      request: {
+        name: notification.name,
+        channel_type: notification.type,
+        target: notification.target,
+        status: notification.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE',
+      },
+    });
+  }
+
+  const notificationColumns: DataColumn<NotificationConfig>[] = [
+    {
+      className: 'w-[25%]',
+      header: 'Name',
+      render: (notification) => (
+        <div className="flex items-center gap-3">
+          <span className="grid size-8 shrink-0 place-items-center rounded-md bg-pink-50 text-pink-600">
+            <BellRing aria-hidden="true" size={16} />
+          </span>
+          <div className="min-w-0">
+            <p className="truncate font-semibold text-slate-950">
+              {notification.name}
+            </p>
+            <p className="mt-1 truncate text-xs text-slate-500">
+              {notification.type}
+            </p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      className: 'w-[28%]',
+      header: 'Target',
+      render: (notification) => (
+        <span className="truncate text-xs text-slate-600">
+          {notification.target}
+        </span>
+      ),
+    },
+    {
+      className: 'w-[14%]',
+      header: 'Token',
+      render: (notification) => {
+        const token = notification.credential;
+        const masked =
+          token && token.length > 12
+            ? `${token.slice(0, 6)}***${token.slice(-6)}`
+            : token ?? '—';
+        return (
+          <span className="truncate font-mono text-xs text-slate-600">
+            {masked}
+          </span>
+        );
+      },
+    },
+    {
+      className: 'w-[8%]',
+      header: 'Status',
+      render: (notification) => {
+        const isActive = notification.status === 'ACTIVE';
+        const isToggling =
+          updateNotificationMutation.isPending &&
+          updateNotificationMutation.variables?.id === notification.id;
+        return (
+          <button
+            aria-label={
+              isActive
+                ? `Disable ${notification.name}`
+                : `Enable ${notification.name}`
+            }
+            aria-pressed={isActive}
+            className={cn(
+              'relative h-5 w-9 shrink-0 rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60',
+              isActive ? 'bg-indigo-500' : 'bg-slate-300',
+            )}
+            disabled={isToggling}
+            onClick={() => handleToggleNotificationStatus(notification)}
+            title={isActive ? 'Disable' : 'Enable'}
+            type="button"
+          >
+            <span
+              className={cn(
+                'absolute top-0.5 grid size-4 rounded-full bg-white shadow-sm transition',
+                isActive ? 'left-[18px]' : 'left-0.5',
+              )}
+            />
+          </button>
+        );
+      },
+    },
+    {
+      className: 'w-[15%]',
+      header: 'Updated At',
+      render: (notification) => formatKnowledgeDate(notification.updated_at),
+    },
+    {
+      className: 'w-[15%]',
+      header: 'Actions',
+      render: (notification) => (
+        <div className="flex items-center gap-2">
+          <ActionButton
+            aria-label={`Edit ${notification.name}`}
+            className="size-8 border-0 bg-transparent p-0 text-blue-600 shadow-none hover:bg-slate-100 hover:text-blue-700"
+            message={`${notification.name} editor opened`}
+            onClick={() => setEditingNotification(notification)}
+            size="sm"
+            variant="ghost"
+          >
+            ✎
+          </ActionButton>
+          <ActionButton
+            aria-label={`Delete ${notification.name}`}
+            className="size-8 border-0 bg-transparent p-0 text-red-600 shadow-none hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={
+              deleteNotificationMutation.isPending &&
+              deleteNotificationMutation.variables === notification.id
+            }
+            message={`${notification.name} deleted`}
+            onClick={() => handleDeleteNotification(notification)}
+            size="sm"
+            variant="ghost"
+          >
+            <Trash2 aria-hidden="true" size={15} />
+          </ActionButton>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <AppShell activeItem="Notifications" activeSection="settings">
       <PageHeader
         actions={
-          <ActionButton message="Add webhook dialog opened">
-            <Plus aria-hidden="true" size={15} />
-            Add Webhook
-          </ActionButton>
+          <button
+            className="inline-flex h-10 w-28 items-center justify-center rounded-md bg-blue-600 px-0 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2"
+            onClick={() => setIsCreateDialogOpen(true)}
+            type="button"
+          >
+            New
+          </button>
         }
         actionsClassName="pr-4"
         description="Manage notification webhooks and delivery channels for alerts, updates, and incident workflows."
@@ -5312,24 +6380,115 @@ export function SettingsNotificationsPage(): ReactNode {
       <div className="min-h-0 flex-1 overflow-auto px-6 pb-6">
         <Toolbar>
           <div className="flex flex-wrap gap-4">
-            <FilterInput placeholder="Search notifications by name..." />
+            <FilterInput
+              onChange={setDraftKeyword}
+              placeholder="Search notifications by name..."
+              value={draftKeyword}
+            />
           </div>
-          <SearchButton />
+          <ActionButton
+            className="h-10 w-28 px-0"
+            message="Notifications search executed"
+            onClick={() => setAppliedKeyword(draftKeyword.trim())}
+          >
+            Search
+          </ActionButton>
         </Toolbar>
-        <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
-          <div className="border-b border-slate-200 px-5 py-5">
-            <h2 className="text-lg font-semibold text-slate-950">
-              Notification Webhooks
-            </h2>
+        {queryError && notificationsQuery.isError ? (
+          <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {queryError}
           </div>
-          <DataTable
-            columns={notificationColumns}
-            containerClassName="rounded-none border-0"
-            getRowKey={(row) => row.name}
-            rows={notifications}
+        ) : null}
+        <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
+          {notificationsQuery.isLoading ? (
+            <IntegrationTableState>
+              Loading notifications...
+            </IntegrationTableState>
+          ) : notificationsQuery.isError ? (
+            <IntegrationTableState tone="danger">
+              {queryError}
+            </IntegrationTableState>
+          ) : filteredNotifications.length === 0 ? (
+            <IntegrationTableState>
+              No notifications found.
+            </IntegrationTableState>
+          ) : (
+            <DataTable
+              columns={notificationColumns}
+              containerClassName="rounded-none border-0"
+              getRowKey={(notification) => String(notification.id)}
+              rows={filteredNotifications}
+            />
+          )}
+          <FilesPagination
+            onPageChange={setPage}
+            page={page}
+            pageSize={pageSize}
+            total={total}
           />
         </section>
       </div>
+      <NotificationFormDialog
+        errorMessage={
+          createNotificationMutation.error instanceof ApiError
+            ? createNotificationMutation.error.message
+            : undefined
+        }
+        isOpen={isCreateDialogOpen}
+        isSubmitting={createNotificationMutation.isPending}
+        onClose={() => {
+          createNotificationMutation.reset();
+          setIsCreateDialogOpen(false);
+        }}
+        onSubmit={async (values) => {
+          await createNotificationMutation.mutateAsync({
+            channel_type: values.channel_type,
+            credential_ref: values.credential_ref?.trim() || null,
+            name: values.name,
+            target: values.target,
+          });
+        }}
+        typeOptions={notificationTypeOptions}
+      />
+      <NotificationFormDialog
+        errorMessage={
+          updateNotificationMutation.error instanceof ApiError
+            ? updateNotificationMutation.error.message
+            : undefined
+        }
+        initialValues={
+          editingNotification
+            ? {
+                channel_type: editingNotification.type,
+                credential_ref: editingNotification.credential ?? '',
+                name: editingNotification.name,
+                target: editingNotification.target,
+              }
+            : null
+        }
+        isEditMode
+        isOpen={editingNotification !== null}
+        isSubmitting={updateNotificationMutation.isPending}
+        onClose={() => {
+          updateNotificationMutation.reset();
+          setEditingNotification(null);
+        }}
+        onSubmit={async (values) => {
+          if (!editingNotification) {
+            return;
+          }
+          await updateNotificationMutation.mutateAsync({
+            id: editingNotification.id,
+            request: {
+              channel_type: values.channel_type,
+              credential_ref: values.credential_ref?.trim() || null,
+              name: values.name,
+              target: values.target,
+            },
+          });
+        }}
+        typeOptions={notificationTypeOptions}
+      />
     </AppShell>
   );
 }

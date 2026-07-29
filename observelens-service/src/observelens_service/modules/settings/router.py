@@ -49,7 +49,7 @@ async def create_model(r: ModelWrite, c: C, s: S) -> ModelResponse:
 async def providers(c: C) -> list[dict[str, str]]:
     return [
         {"value": x, "label": x}
-        for x in ("OPENAI", "AZURE_OPENAI", "QWEN", "DEEPSEEK", "CLAUDE", "GEMINI")
+        for x in ("OPENAI", "AZURE_OPENAI", "QWEN", "DEEPSEEK", "CLAUDE", "GEMINI", "GLM", "OTHER")
     ]
 
 

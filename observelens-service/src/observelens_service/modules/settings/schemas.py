@@ -9,6 +9,7 @@ class ModelWrite(BaseModel):
     model_name: str
     endpoint: str | None = None
     credential_ref: str | None = None
+    status: str | None = None
 
 
 class ModelResponse(BaseModel):
@@ -18,8 +19,10 @@ class ModelResponse(BaseModel):
     provider: str
     model_name: str
     endpoint: str | None
+    credential: str | None
     status: str
     is_default: bool
+    created_by: int = Field(validation_alias="create_by")
     created_at: datetime = Field(validation_alias="create_time")
     updated_at: datetime = Field(validation_alias="update_time")
 
@@ -36,6 +39,7 @@ class NotificationWrite(BaseModel):
     channel_type: str
     target: str
     credential_ref: str | None = None
+    status: str | None = None
 
 
 class NotificationResponse(BaseModel):
@@ -45,6 +49,7 @@ class NotificationResponse(BaseModel):
     type: str = Field(validation_alias="channel_type")
     status: str
     target: str
+    credential: str | None = None
     created_at: datetime = Field(validation_alias="create_time")
     updated_at: datetime = Field(validation_alias="update_time")
 

@@ -56,13 +56,16 @@ class SettingsService:
 
     async def update_model(self, c: RequestContext, i: int, r: ModelWrite) -> ModelResponse:
         item = await self.model(c, i)
-        for k, v in {
+        updates = {
             "name": r.name,
             "provider": r.provider,
             "model_name": r.model_name,
             "endpoint": r.endpoint,
             "credential": r.credential_ref,
-        }.items():
+        }
+        if r.status is not None:
+            updates["status"] = r.status
+        for k, v in updates.items():
             setattr(item, k, v)
         item.update_by = c.user_id
         await self._session.flush()
@@ -107,6 +110,7 @@ class SettingsService:
                 "channel_type": x.channel_type,
                 "status": x.status,
                 "target": x.config.get("target", ""),
+                "credential": x.credential,
                 "create_time": x.create_time,
                 "update_time": x.update_time,
             }
@@ -142,6 +146,8 @@ class SettingsService:
         item.channel_type = r.channel_type
         item.config = {"target": r.target}
         item.credential = r.credential_ref
+        if r.status is not None:
+            item.status = r.status
         item.update_by = c.user_id
         await self._session.flush()
         return self._notification(item)
