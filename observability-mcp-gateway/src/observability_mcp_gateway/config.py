@@ -9,32 +9,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-
-class UpstreamConfig(BaseModel):
-    """Connection settings for a single external observability system."""
-
-    base_url: str = ""
-    timeout_ms: int = 5000
-
-
-class LimitsConfig(BaseModel):
-    """Guard-rails to prevent context explosion for the LLM consumer."""
-
-    max_tool_output_chars: int = 20_000
-    max_log_lines: int = 200
-    max_trace_spans: int = 100
-    request_timeout_ms: int = 10_000
-
-
-class AuthConfig(BaseModel):
-    """Authentication configuration."""
-
-    enabled: bool = False
-    jwt_issuer: str = ""
-    jwt_audience: str = ""
 
 
 class Settings(BaseSettings):
@@ -54,17 +29,55 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     # ── auth ──────────────────────────────────────────────────
-    auth: AuthConfig = AuthConfig()
+    auth_enabled: bool = False
+    auth_jwt_issuer: str = ""
+    auth_jwt_audience: str = ""
 
-    # ── upstream systems ─────────────────────────────────────
-    prometheus: UpstreamConfig = UpstreamConfig(base_url="http://localhost:9090")
-    loki: UpstreamConfig = UpstreamConfig(base_url="http://localhost:3100")
-    jaeger: UpstreamConfig = UpstreamConfig(base_url="http://localhost:16686")
-    kubernetes: UpstreamConfig = UpstreamConfig()
-    cmdb: UpstreamConfig = UpstreamConfig()
+    # ── upstream: prometheus ─────────────────────────────────
+    prometheus_base_url: str = "http://localhost:9090"
+    prometheus_timeout_ms: int = 5000
+
+    # ── upstream: loki ───────────────────────────────────────
+    loki_base_url: str = "http://localhost:3100"
+    loki_timeout_ms: int = 5000
+
+    # ── upstream: jaeger ─────────────────────────────────────
+    jaeger_base_url: str = "http://localhost:16686"
+    jaeger_timeout_ms: int = 5000
+
+    # ── upstream: kubernetes ─────────────────────────────────
+    kubernetes_base_url: str = ""
+    kubernetes_timeout_ms: int = 5000
+
+    # ── upstream: cmdb ───────────────────────────────────────
+    cmdb_base_url: str = ""
+    cmdb_timeout_ms: int = 5000
 
     # ── limits ───────────────────────────────────────────────
-    limits: LimitsConfig = LimitsConfig()
+    max_tool_output_chars: int = 20_000
+    max_log_lines: int = 200
+    max_trace_spans: int = 100
+    request_timeout_ms: int = 10_000
+
+    @property
+    def prometheus_timeout_seconds(self) -> float:
+        return self.prometheus_timeout_ms / 1000.0
+
+    @property
+    def loki_timeout_seconds(self) -> float:
+        return self.loki_timeout_ms / 1000.0
+
+    @property
+    def jaeger_timeout_seconds(self) -> float:
+        return self.jaeger_timeout_ms / 1000.0
+
+    @property
+    def kubernetes_timeout_seconds(self) -> float:
+        return self.kubernetes_timeout_ms / 1000.0
+
+    @property
+    def cmdb_timeout_seconds(self) -> float:
+        return self.cmdb_timeout_ms / 1000.0
 
 
 @lru_cache

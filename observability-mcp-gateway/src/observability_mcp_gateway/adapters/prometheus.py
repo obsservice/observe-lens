@@ -23,26 +23,33 @@ class PrometheusAdapter(BaseAdapter):
 
     def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings or get_settings()
-        self._upstream = self._settings.prometheus
 
     @property
     def name(self) -> str:
         return "prometheus"
 
+    @property
+    def _base_url(self) -> str:
+        return self._settings.prometheus_base_url
+
+    @property
+    def _timeout(self) -> float:
+        return self._settings.prometheus_timeout_seconds
+
     async def health_check(self) -> bool:
         """Return ``True`` if Prometheus ``/-/healthy`` responds 200."""
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
-                resp = await client.get(f"{self._upstream.base_url}/-/healthy")
+                resp = await client.get(f"{self._base_url}/-/healthy")
                 return resp.status_code == 200
         except Exception:
-            logger.warning("prometheus_health_check_failed", upstream=self._upstream.base_url)
+            logger.warning("prometheus_health_check_failed", upstream=self._base_url)
             return False
 
     async def query(self, request: dict[str, Any]) -> dict[str, Any]:
         """Execute an instant query (``/api/v1/query``)."""
-        params = {"query": request["query"]}
-        if "timestamp" in request and request["timestamp"]:
+        params: dict[str, Any] = {"query": request["query"]}
+        if request.get("timestamp"):
             params["time"] = request["timestamp"]
         return await self._get("/api/v1/query", params)
 
@@ -57,7 +64,7 @@ class PrometheusAdapter(BaseAdapter):
         return await self._get("/api/v1/query_range", params)
 
     async def _get(self, path: str, params: dict[str, Any]) -> dict[str, Any]:
-        url = f"{self._upstream.base_url}{path}"
+        url = f"{self._base_url}{path}"
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
                 resp = await client.get(url, params=params)
@@ -71,7 +78,3 @@ class PrometheusAdapter(BaseAdapter):
             ) from exc
         except httpx.HTTPError as exc:
             raise ToolError.upstream_unavailable(self.name, str(exc)) from exc
-
-    @property
-    def _timeout(self) -> float:
-        return self._upstream.timeout_ms / 1000.0

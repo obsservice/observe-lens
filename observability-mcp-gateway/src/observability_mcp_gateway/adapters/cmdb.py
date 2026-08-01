@@ -27,22 +27,29 @@ class CMDBAdapter(BaseAdapter):
 
     def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings or get_settings()
-        self._upstream = self._settings.cmdb
 
     @property
     def name(self) -> str:
         return "cmdb"
 
+    @property
+    def _base_url(self) -> str:
+        return self._settings.cmdb_base_url
+
+    @property
+    def _timeout(self) -> float:
+        return self._settings.cmdb_timeout_seconds
+
     async def health_check(self) -> bool:
         """Return ``True`` if the Catalog service health endpoint responds 200."""
-        if not self._upstream.base_url:
+        if not self._base_url:
             return False
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
-                resp = await client.get(f"{self._upstream.base_url}/health")
+                resp = await client.get(f"{self._base_url}/health")
                 return resp.status_code == 200
         except Exception:
-            logger.warning("cmdb_health_check_failed", upstream=self._upstream.base_url)
+            logger.warning("cmdb_health_check_failed", upstream=self._base_url)
             return False
 
     async def query(self, request: dict[str, Any]) -> dict[str, Any]:
@@ -67,7 +74,7 @@ class CMDBAdapter(BaseAdapter):
         return await self._get(f"/api/v1/entities/{entity_id}/owners")
 
     async def _get(self, path: str, params: dict[str, str] | None = None) -> dict[str, Any]:
-        url = f"{self._upstream.base_url}{path}"
+        url = f"{self._base_url}{path}"
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
                 resp = await client.get(url, params=params)
@@ -81,7 +88,3 @@ class CMDBAdapter(BaseAdapter):
             ) from exc
         except httpx.HTTPError as exc:
             raise ToolError.upstream_unavailable(self.name, str(exc)) from exc
-
-    @property
-    def _timeout(self) -> float:
-        return self._upstream.timeout_ms / 1000.0

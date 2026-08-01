@@ -23,20 +23,27 @@ class LokiAdapter(BaseAdapter):
 
     def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings or get_settings()
-        self._upstream = self._settings.loki
 
     @property
     def name(self) -> str:
         return "loki"
 
+    @property
+    def _base_url(self) -> str:
+        return self._settings.loki_base_url
+
+    @property
+    def _timeout(self) -> float:
+        return self._settings.loki_timeout_seconds
+
     async def health_check(self) -> bool:
         """Return ``True`` if Loki ``/ready`` responds 200."""
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
-                resp = await client.get(f"{self._upstream.base_url}/ready")
+                resp = await client.get(f"{self._base_url}/ready")
                 return resp.status_code == 200
         except Exception:
-            logger.warning("loki_health_check_failed", upstream=self._upstream.base_url)
+            logger.warning("loki_health_check_failed", upstream=self._base_url)
             return False
 
     async def query(self, request: dict[str, Any]) -> dict[str, Any]:
@@ -51,7 +58,6 @@ class LokiAdapter(BaseAdapter):
 
     async def search_patterns(self, request: dict[str, Any]) -> dict[str, Any]:
         """Search for keyword / error patterns via Loki query syntax."""
-        # Patterns are OR-joined into a LogQL regex.
         regex = "|".join(request["patterns"])
         query = f'{{job=~".+"}} |=~ "{regex}"'
         params = {
@@ -63,7 +69,7 @@ class LokiAdapter(BaseAdapter):
         return await self._get("/loki/api/v1/query_range", params)
 
     async def _get(self, path: str, params: dict[str, Any]) -> dict[str, Any]:
-        url = f"{self._upstream.base_url}{path}"
+        url = f"{self._base_url}{path}"
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
                 resp = await client.get(url, params=params)
@@ -72,10 +78,8 @@ class LokiAdapter(BaseAdapter):
         except httpx.TimeoutException as exc:
             raise ToolError.timeout(self.name) from exc
         except httpx.HTTPStatusError as exc:
-            raise ToolError.invalid_query(f"Loki returned {exc.response.status_code}") from exc
+            raise ToolError.invalid_query(
+                f"Loki returned {exc.response.status_code}"
+            ) from exc
         except httpx.HTTPError as exc:
             raise ToolError.upstream_unavailable(self.name, str(exc)) from exc
-
-    @property
-    def _timeout(self) -> float:
-        return self._upstream.timeout_ms / 1000.0

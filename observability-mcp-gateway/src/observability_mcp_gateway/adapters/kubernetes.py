@@ -31,31 +31,36 @@ class KubernetesAdapter(BaseAdapter):
         self,
         settings: Settings | None = None,
         *,
-        kubeconfig: str | None = None,
         token: str | None = None,
     ) -> None:
         self._settings = settings or get_settings()
-        self._upstream = self._settings.kubernetes
         self._token = token
-        self._kubeconfig = kubeconfig
 
     @property
     def name(self) -> str:
         return "kubernetes"
 
+    @property
+    def _base_url(self) -> str:
+        return self._settings.kubernetes_base_url
+
+    @property
+    def _timeout(self) -> float:
+        return self._settings.kubernetes_timeout_seconds
+
     async def health_check(self) -> bool:
         """Return ``True`` if the Kubernetes API ``/healthz`` responds 200."""
-        if not self._upstream.base_url:
+        if not self._base_url:
             return False
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
                 resp = await client.get(
-                    f"{self._upstream.base_url}/healthz",
+                    f"{self._base_url}/healthz",
                     headers=self._headers(),
                 )
                 return resp.status_code == 200
         except Exception:
-            logger.warning("kubernetes_health_check_failed", upstream=self._upstream.base_url)
+            logger.warning("kubernetes_health_check_failed", upstream=self._base_url)
             return False
 
     async def query(self, request: dict[str, Any]) -> dict[str, Any]:
@@ -78,12 +83,8 @@ class KubernetesAdapter(BaseAdapter):
             params["limit"] = str(request["limit"])
         return await self._get(path, params)
 
-    async def _get(
-        self,
-        path: str,
-        params: dict[str, str] | None = None,
-    ) -> dict[str, Any]:
-        url = f"{self._upstream.base_url}{path}"
+    async def _get(self, path: str, params: dict[str, str] | None = None) -> dict[str, Any]:
+        url = f"{self._base_url}{path}"
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
                 resp = await client.get(url, params=params, headers=self._headers())
@@ -103,7 +104,3 @@ class KubernetesAdapter(BaseAdapter):
         if self._token:
             headers["Authorization"] = f"Bearer {self._token}"
         return headers
-
-    @property
-    def _timeout(self) -> float:
-        return self._upstream.timeout_ms / 1000.0

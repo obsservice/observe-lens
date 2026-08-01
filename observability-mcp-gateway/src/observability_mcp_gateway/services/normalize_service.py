@@ -8,15 +8,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from observability_mcp_gateway.config import LimitsConfig
+from observability_mcp_gateway.config import Settings, get_settings
 from observability_mcp_gateway.mcp.schemas.common import Evidence, TimeRange, ToolResult
 
 
 class NormalizeService:
     """Normalises raw adapter output into LLM-friendly :class:`ToolResult`."""
 
-    def __init__(self, limits: LimitsConfig | None = None) -> None:
-        self._limits = limits or LimitsConfig()
+    def __init__(self, settings: Settings | None = None) -> None:
+        self._settings = settings or get_settings()
 
     # ── Prometheus ────────────────────────────────────────────
 
@@ -94,7 +94,7 @@ class NormalizeService:
     ) -> dict[str, Any]:
         """Normalise a Loki log query result."""
         result_data = raw.get("data", {}).get("result", [])
-        max_lines = limit or self._limits.max_log_lines
+        max_lines = limit or self._settings.max_log_lines
         total_lines = 0
         evidence: list[Evidence] = []
         for stream in result_data:
@@ -140,7 +140,7 @@ class NormalizeService:
 
         trace = traces[0]
         spans = trace.get("spans", [])
-        max_spans = self._limits.max_trace_spans
+        max_spans = self._settings.max_trace_spans
         error_spans = [s for s in spans if any(t.get("key") == "error" for t in s.get("tags", []))]
         key_spans = (error_spans + spans)[:max_spans]
 

@@ -29,7 +29,7 @@ class SessionAuthenticator:
 
         When auth is disabled (development mode), a default context is returned.
         """
-        if not self._settings.auth.enabled:
+        if not self._settings.auth_enabled:
             logger.debug("auth_disabled_passthrough")
             return SessionContext(tenant_id="default", user_id="dev", roles=frozenset({"admin"}))
 
