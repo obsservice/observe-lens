@@ -25,6 +25,12 @@ class UnavailableAgentClient:
         yield ""
 
 
+class AssistantAgentClient:
+    async def stream_run(self, conversation_id: int, run_id: int, content: str):  # type: ignore[no-untyped-def]
+        yield 'event: output.progress\ndata: {"type":"output.progress","data":{"content":"partial"}}\n\n'
+        yield 'event: output.completed\ndata: {"type":"output.completed","data":{"content":"final answer"}}\n\n'
+
+
 @pytest.mark.asyncio
 async def test_create_conversation_uses_request_context(monkeypatch: pytest.MonkeyPatch) -> None:
     service = ConversationService(FakeSession(), FakeAgentClient())  # type: ignore[arg-type]
@@ -47,3 +53,28 @@ async def test_stream_run_returns_aesp_failure_when_agent_is_unavailable() -> No
     assert len(events) == 1
     assert events[0].startswith("event: run.failed\n")
     assert '"code": "AGENT_UNAVAILABLE"' in events[0]
+
+
+@pytest.mark.asyncio
+async def test_stream_run_persists_assistant_response() -> None:
+    service = ConversationService(FakeSession(), AssistantAgentClient())  # type: ignore[arg-type]
+    captured: list[object] = []
+    service._repository.add = captured.append  # type: ignore[method-assign]
+
+    async def next_sequence(*args: object) -> int:
+        return 2
+
+    service._repository.next_message_sequence = next_sequence  # type: ignore[method-assign]
+
+    events = [
+        event
+        async for event in service.stream_run(7, 11, "Investigate Kafka", tenant_id=7)
+    ]
+
+    assert len(events) == 2
+    assert len(captured) == 1
+    message = captured[0]
+    assert message.sender_role == "ASSISTANT"  # type: ignore[union-attr]
+    assert message.content == "final answer"  # type: ignore[union-attr]
+    assert message.sequence_id == 2  # type: ignore[union-attr]
+    assert len(message.message_metadata["events"]) == 2  # type: ignore[union-attr]

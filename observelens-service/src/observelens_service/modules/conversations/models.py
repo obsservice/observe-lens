@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import JSON, BigInteger, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from observelens_service.database.base import Base
@@ -40,6 +40,9 @@ class MessageModel(Base):
     run_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     sender_role: Mapped[str] = mapped_column(String(16))
     content: Mapped[str] = mapped_column(Text)
+    message_metadata: Mapped[dict[str, object] | None] = mapped_column(
+        "metadata", JSON, nullable=True
+    )
     status: Mapped[str] = mapped_column(String(16), default="COMPLETED")
     create_time: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, server_default=func.now()

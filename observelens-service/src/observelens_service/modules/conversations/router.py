@@ -15,6 +15,7 @@ from observelens_service.modules.conversations.schemas import (
     ConversationPage,
     ConversationResponse,
     ConversationUpdateRequest,
+    MessagePage,
     MessageCreateRequest,
 )
 from observelens_service.modules.conversations.service import ConversationService
@@ -78,6 +79,17 @@ async def delete_conversation(
     return Response(status_code=204)
 
 
+@router.get("/{conversation_id}/messages", response_model=MessagePage)
+async def list_messages(
+    conversation_id: int,
+    context: ContextDependency,
+    service: ServiceDependency,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+) -> MessagePage:
+    return await service.list_messages(context, conversation_id, page, page_size)
+
+
 @router.post("/{conversation_id}/messages", response_class=StreamingResponse)
 async def create_message(
     conversation_id: int,
@@ -87,7 +99,12 @@ async def create_message(
 ) -> StreamingResponse:
     _, run_id = await service.create_message(context, conversation_id, request.content)
     return StreamingResponse(
-        service.stream_run(conversation_id, run_id, request.content),
+        service.stream_run(
+            conversation_id,
+            run_id,
+            request.content,
+            tenant_id=context.tenant_id,
+        ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

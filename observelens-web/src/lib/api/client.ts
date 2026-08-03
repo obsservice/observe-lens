@@ -75,16 +75,27 @@ export async function apiRequest<TResponse>(
   path: string,
   { body, headers, ...options }: RequestOptions = {},
 ): Promise<TResponse> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    body: body === undefined ? undefined : JSON.stringify(body),
-    headers: {
-      Accept: 'application/json',
-      ...buildContextHeaders(),
-      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-      ...headers,
-    },
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: {
+        Accept: 'application/json',
+        ...buildContextHeaders(),
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        ...headers,
+      },
+    });
+  } catch {
+    throw new ApiError({
+      code: 'NETWORK_ERROR',
+      message: `Unable to connect to ObserveLens service at ${API_BASE_URL}. Verify that the service is running.`,
+      requestId: null,
+      status: 0,
+    });
+  }
 
   if (!response.ok) {
     const errorResponse = (await response
@@ -111,15 +122,26 @@ export async function apiFormRequest<TResponse>(
   formData: FormData,
   { headers, ...options }: Omit<RequestOptions, 'body'> = {},
 ): Promise<TResponse> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    body: formData,
-    headers: {
-      Accept: 'application/json',
-      ...buildContextHeaders(),
-      ...headers,
-    },
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      body: formData,
+      headers: {
+        Accept: 'application/json',
+        ...buildContextHeaders(),
+        ...headers,
+      },
+    });
+  } catch {
+    throw new ApiError({
+      code: 'NETWORK_ERROR',
+      message: `Unable to connect to ObserveLens service at ${API_BASE_URL}. Verify that the service is running.`,
+      requestId: null,
+      status: 0,
+    });
+  }
 
   if (!response.ok) {
     const errorResponse = (await response

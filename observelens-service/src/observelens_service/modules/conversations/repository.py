@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -50,3 +52,21 @@ class ConversationRepository:
 
     def add(self, model: ConversationModel | MessageModel | RunModel) -> None:
         self._session.add(model)
+
+    async def list_messages(
+        self, tenant_id: int, conversation_id: int, page: int, page_size: int
+    ) -> tuple[list[MessageModel], int]:
+        filters = (
+            MessageModel.tenant_id == tenant_id,
+            MessageModel.conversation_id == conversation_id,
+        )
+        query: Select[tuple[MessageModel]] = (
+            select(MessageModel).where(*filters).order_by(MessageModel.sequence_id.asc())
+        )
+        rows = (
+            await self._session.scalars(query.offset((page - 1) * page_size).limit(page_size))
+        ).all()
+        total = await self._session.scalar(
+            select(func.count()).select_from(MessageModel).where(*filters)
+        )
+        return list(rows), total or 0

@@ -107,14 +107,9 @@ function ObserveLensLogo(): ReactNode {
 function TopBar(): ReactNode {
   return (
     <header className="flex h-[66px] shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5">
-      <div className="flex items-center gap-4">
-        <Link className="flex items-center gap-3" href="/">
-          <ObserveLensLogo />
-          <span className="text-lg font-semibold text-slate-950">
-            ObserveLens
-          </span>
-        </Link>
-      </div>
+      <Link aria-label="ObserveLens home" className="flex items-center" href="/">
+        <ObserveLensLogo />
+      </Link>
 
       <div className="flex items-center gap-5">
         <ActionButton
@@ -127,6 +122,14 @@ function TopBar(): ReactNode {
           <span className="absolute -right-1.5 -top-1.5 grid size-4 place-items-center rounded-full bg-red-500 text-[10px] font-semibold text-white">
             3
           </span>
+        </ActionButton>
+        <ActionButton
+          className="size-9 rounded-full border-0 bg-transparent p-0 text-slate-700 shadow-none ring-0 hover:bg-transparent hover:text-blue-600"
+          message="Help center opened"
+          title="Help"
+          variant="ghost"
+        >
+          <HelpCircle aria-hidden="true" size={20} />
         </ActionButton>
         <ActionButton
           className="grid size-9 place-items-center rounded-full border-0 bg-violet-600 p-0 text-sm font-semibold text-white shadow-none ring-0 hover:bg-violet-600"

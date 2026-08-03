@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -41,4 +42,14 @@ class MessageResponse(BaseModel):
     run_id: int | None
     role: str = Field(validation_alias="sender_role")
     content: str
+    metadata: dict[str, Any] | None = Field(
+        default=None, validation_alias="message_metadata", serialization_alias="metadata"
+    )
     created_at: datetime = Field(validation_alias="create_time")
+
+
+class MessagePage(BaseModel):
+    items: list[MessageResponse]
+    total: int
+    page: int
+    page_size: int

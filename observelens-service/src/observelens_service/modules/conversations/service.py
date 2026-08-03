@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import time
 from collections.abc import AsyncIterator
@@ -21,6 +23,7 @@ from observelens_service.modules.conversations.schemas import (
     ConversationPage,
     ConversationResponse,
     ConversationUpdateRequest,
+    MessagePage,
     MessageResponse,
 )
 
@@ -66,6 +69,20 @@ class ConversationService:
     async def get(self, context: RequestContext, conversation_id: int) -> ConversationResponse:
         conversation = await self._require(context, conversation_id)
         return ConversationResponse.model_validate(conversation)
+
+    async def list_messages(
+        self, context: RequestContext, conversation_id: int, page: int, page_size: int
+    ) -> MessagePage:
+        await self._require(context, conversation_id)
+        rows, total = await self._repository.list_messages(
+            context.tenant_id, conversation_id, page, page_size
+        )
+        return MessagePage(
+            items=[MessageResponse.model_validate(row) for row in rows],
+            total=total,
+            page=page,
+            page_size=page_size,
+        )
 
     async def update(
         self, context: RequestContext, conversation_id: int, request: ConversationUpdateRequest
@@ -114,11 +131,27 @@ class ConversationService:
         return MessageResponse.model_validate(message), run.id
 
     async def stream_run(
-        self, conversation_id: int, run_id: int, content: str
+        self,
+        conversation_id: int,
+        run_id: int,
+        content: str,
+        tenant_id: int | None = None,
     ) -> AsyncIterator[str]:
+        assistant_content = ""
+        investigation_events: list[dict[str, object]] = []
         try:
             async for event in self._agent_client.stream_run(conversation_id, run_id, content):
                 yield event
+                payload = self._parse_event(event)
+                if payload is not None:
+                    investigation_events.append(payload)
+                output = self._extract_output(event, payload)
+                if output is not None:
+                    event_type, event_content = output
+                    if event_type == "output.completed":
+                        assistant_content = event_content
+                    elif event_type == "output.progress":
+                        assistant_content += event_content
         except httpx.TimeoutException:
             logger.warning("agent_run_timed_out", conversation_id=conversation_id, run_id=run_id)
             yield self._run_failed_event(
@@ -144,6 +177,64 @@ class ConversationService:
                 "AGENT_REQUEST_FAILED",
                 "Agent Runtime rejected the investigation request.",
             )
+        finally:
+            if tenant_id is not None and assistant_content.strip():
+                await self._persist_assistant_message(
+                    tenant_id,
+                    conversation_id,
+                    run_id,
+                    assistant_content,
+                    investigation_events,
+                )
+
+    @staticmethod
+    def _parse_event(event: str) -> dict[str, object] | None:
+        for line in event.splitlines():
+            if line.startswith("data:"):
+                try:
+                    payload = json.loads(line[5:].strip())
+                except json.JSONDecodeError:
+                    return None
+                return payload if isinstance(payload, dict) else None
+        return None
+
+    @staticmethod
+    def _extract_output(
+        event: str, payload: dict[str, object] | None = None
+    ) -> tuple[str, str] | None:
+        output_payload = payload or ConversationService._parse_event(event)
+        if output_payload is None:
+            return None
+        event_type = output_payload.get("type")
+        data = output_payload.get("data")
+        if event_type not in {"output.progress", "output.completed"} or not isinstance(data, dict):
+            return None
+        value = data.get("content")
+        return str(event_type), value if isinstance(value, str) else ""
+
+    async def _persist_assistant_message(
+        self,
+        tenant_id: int,
+        conversation_id: int,
+        run_id: int,
+        content: str,
+        investigation_events: list[dict[str, object]],
+    ) -> None:
+        message = MessageModel(
+            id=new_id(),
+            tenant_id=tenant_id,
+            conversation_id=conversation_id,
+            sequence_id=await self._repository.next_message_sequence(
+                tenant_id, conversation_id
+            ),
+            run_id=run_id,
+            sender_role="ASSISTANT",
+            content=content,
+            message_metadata={"events": investigation_events},
+            status="COMPLETED",
+        )
+        self._repository.add(message)
+        await self._session.flush()
 
     @staticmethod
     def _run_failed_event(conversation_id: int, run_id: int, code: str, message: str) -> str:
