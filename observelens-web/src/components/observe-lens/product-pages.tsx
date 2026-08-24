@@ -35,6 +35,12 @@ import {
   updateIncidentIntegration,
 } from '@/lib/api/incidents';
 import {
+  entityQueryKeys,
+  listEntityTypes,
+  searchEntities,
+  type Entity,
+} from '@/lib/api/entities';
+import {
   createKnowledgeBase,
   deleteKnowledgeBase,
   knowledgeQueryKeys,
@@ -922,15 +928,19 @@ function getIntegrationColumns({
 }
 
 function LabeledFilterSelect({
+  className,
   label,
+  labelClassName,
   onChange,
   options = [],
   selectedValue = '',
   value,
 }: {
+  className?: string;
   label: string;
+  labelClassName?: string;
   onChange?: (value: string) => void;
-  options?: IncidentOption[];
+  options?: Array<{ label: string; value: string }>;
   selectedValue?: string;
   value: string;
 }): ReactNode {
@@ -940,8 +950,18 @@ function LabeledFilterSelect({
   const displayValue = selectedOption?.label ?? value;
 
   return (
-    <label className="relative inline-flex h-10 min-w-[206px] cursor-pointer items-center rounded-md border border-slate-200 bg-white px-4 text-sm text-slate-800 shadow-sm transition focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 hover:border-blue-200 hover:bg-blue-50">
-      <span className="max-w-[76px] shrink-0 truncate font-medium text-slate-950">
+    <label
+      className={cn(
+        'relative inline-flex h-10 min-w-[206px] cursor-pointer items-center rounded-md border border-slate-200 bg-white px-4 text-sm text-slate-800 shadow-sm transition focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 hover:border-blue-200 hover:bg-blue-50',
+        className,
+      )}
+    >
+      <span
+        className={cn(
+          'max-w-[76px] shrink-0 truncate font-medium text-slate-950',
+          labelClassName,
+        )}
+      >
         {label}
       </span>
       <span className="min-w-0 flex-1 truncate pl-4 pr-6 text-right text-sm text-slate-700">
@@ -1278,7 +1298,6 @@ function IntegrationTokenDialog({
   );
 }
 
-
 const fallbackEmbeddingModelOptions: IncidentOption[] = [
   { label: 'text-embedding-3-small', value: 'text-embedding-3-small' },
   { label: 'text-embedding-3-large', value: 'text-embedding-3-large' },
@@ -1294,10 +1313,7 @@ const knowledgeBaseFormSchema = z.object({
     .trim()
     .max(512, 'Description must be 512 characters or fewer.')
     .optional(),
-  embedding_model: z
-    .string()
-    .trim()
-    .min(1, 'Embedding model is required.'),
+  embedding_model: z.string().trim().min(1, 'Embedding model is required.'),
   name: z
     .string()
     .trim()
@@ -1924,143 +1940,62 @@ function InspectionPagination(): ReactNode {
   );
 }
 
-interface EntityRow {
-  environment: 'Production' | 'Staging';
-  id: string;
-  labels: string[];
-  lastObserved: string;
-  name: string;
-  namespace: string;
-  type:
-    | 'Alert'
-    | 'Cluster'
-    | 'Database'
-    | 'Function'
-    | 'Host'
-    | 'Pod'
-    | 'Service'
-    | 'Topic';
+const entityTypeClassNames: Record<string, string> = {
+  alert: 'border-red-200 bg-red-50 text-red-700',
+  cluster: 'border-cyan-200 bg-cyan-50 text-cyan-700',
+  database: 'border-violet-200 bg-violet-50 text-violet-700',
+  function: 'border-orange-200 bg-orange-50 text-orange-700',
+  host: 'border-orange-200 bg-orange-50 text-orange-700',
+  pod: 'border-blue-200 bg-blue-50 text-blue-700',
+  service: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  topic: 'border-pink-200 bg-pink-50 text-pink-700',
+};
+
+function getEntityIcon(type: string): { className: string; icon: typeof Box } {
+  switch (type.toLowerCase()) {
+    case 'alert':
+      return { className: 'text-pink-500', icon: BellRing };
+    case 'database':
+      return { className: 'text-orange-500', icon: Database };
+    case 'function':
+      return { className: 'text-orange-500', icon: Zap };
+    case 'service':
+      return { className: 'text-emerald-600', icon: GitBranch };
+    case 'topic':
+      return { className: 'text-violet-600', icon: GitBranch };
+    default:
+      return { className: 'text-blue-600', icon: Box };
+  }
 }
 
-const entities: EntityRow[] = [
-  {
-    environment: 'Production',
-    id: 'pod-5f7d6c8b7-2k9mz',
-    labels: ['app: checkout', 'version: v2.1.0', '+3'],
-    lastObserved: '2024-05-20 10:30:45',
-    name: 'checkout-service',
-    namespace: 'default',
-    type: 'Pod',
-  },
-  {
-    environment: 'Production',
-    id: 'mysql-0',
-    labels: ['app: orders', 'role: primary', '+2'],
-    lastObserved: '2024-05-20 10:29:12',
-    name: 'orders-db-primary',
-    namespace: 'data',
-    type: 'Database',
-  },
-  {
-    environment: 'Production',
-    id: 'svc-api-gateway',
-    labels: ['app: gateway', 'tier: frontend', '+1'],
-    lastObserved: '2024-05-20 10:28:33',
-    name: 'api-gateway',
-    namespace: 'default',
-    type: 'Service',
-  },
-  {
-    environment: 'Production',
-    id: 'i-0abcd123ef4567890',
-    labels: ['role: worker', 'az: ap-southeast-1a', '+1'],
-    lastObserved: '2024-05-20 10:27:55',
-    name: '10.10.2.15',
-    namespace: '-',
-    type: 'Host',
-  },
-  {
-    environment: 'Production',
-    id: 'topic-user-events',
-    labels: ['env: prod', 'team: platform'],
-    lastObserved: '2024-05-20 10:27:18',
-    name: 'user-events',
-    namespace: 'event-streaming',
-    type: 'Topic',
-  },
-  {
-    environment: 'Production',
-    id: 'c-1a2b3c4d5e6f7g8h',
-    labels: ['provider: aws', 'region: ap-southeast-1'],
-    lastObserved: '2024-05-20 10:26:40',
-    name: 'prod-cluster-01',
-    namespace: '-',
-    type: 'Cluster',
-  },
-  {
-    environment: 'Production',
-    id: 'alert-18293',
-    labels: ['severity: critical', 'source: prometheus'],
-    lastObserved: '2024-05-20 10:26:05',
-    name: 'High CPU Usage',
-    namespace: '-',
-    type: 'Alert',
-  },
-  {
-    environment: 'Staging',
-    id: 'lambda-process-payment',
-    labels: ['runtime: python3.11', 'team: payments'],
-    lastObserved: '2024-05-20 10:25:31',
-    name: 'process-payment',
-    namespace: 'billing',
-    type: 'Function',
-  },
-];
+function formatEntityUpdatedAt(value: string | null): string {
+  if (!value) return '-';
 
-const entityTypeClassNames: Record<EntityRow['type'], string> = {
-  Alert: 'border-red-200 bg-red-50 text-red-700',
-  Cluster: 'border-cyan-200 bg-cyan-50 text-cyan-700',
-  Database: 'border-violet-200 bg-violet-50 text-violet-700',
-  Function: 'border-orange-200 bg-orange-50 text-orange-700',
-  Host: 'border-orange-200 bg-orange-50 text-orange-700',
-  Pod: 'border-blue-200 bg-blue-50 text-blue-700',
-  Service: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  Topic: 'border-pink-200 bg-pink-50 text-pink-700',
-};
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
 
-const entityEnvironmentClassNames: Record<EntityRow['environment'], string> = {
-  Production: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  Staging: 'border-blue-200 bg-blue-50 text-blue-700',
-};
+  return new Intl.DateTimeFormat('zh-CN', {
+    day: '2-digit',
+    hour: '2-digit',
+    hour12: false,
+    minute: '2-digit',
+    month: '2-digit',
+    second: '2-digit',
+    year: 'numeric',
+  }).format(date);
+}
 
-const entityIconMap: Record<
-  EntityRow['type'],
-  { className: string; icon: typeof Box }
-> = {
-  Alert: { className: 'text-pink-500', icon: BellRing },
-  Cluster: { className: 'text-blue-600', icon: Box },
-  Database: { className: 'text-orange-500', icon: Database },
-  Function: { className: 'text-orange-500', icon: Zap },
-  Host: { className: 'text-blue-600', icon: FileText },
-  Pod: { className: 'text-blue-600', icon: Box },
-  Service: { className: 'text-emerald-600', icon: GitBranch },
-  Topic: { className: 'text-violet-600', icon: GitBranch },
-};
-
-const entityColumns: DataColumn<EntityRow>[] = [
+const entityColumns: DataColumn<Entity>[] = [
   {
     className: 'w-[20%]',
     header: 'Name ↕',
     render: (row) => {
-      const Icon = entityIconMap[row.type].icon;
+      const entityIcon = getEntityIcon(row.type);
+      const Icon = entityIcon.icon;
 
       return (
         <div className="flex items-center gap-3">
-          <Icon
-            aria-hidden="true"
-            className={entityIconMap[row.type].className}
-            size={23}
-          />
+          <Icon aria-hidden="true" className={entityIcon.className} size={23} />
           <div className="min-w-0">
             <p className="truncate font-semibold text-blue-600">{row.name}</p>
             <p className="mt-1 truncate text-xs text-slate-600">{row.id}</p>
@@ -2073,7 +2008,12 @@ const entityColumns: DataColumn<EntityRow>[] = [
     className: 'w-[11%]',
     header: 'Entity Type ↕',
     render: (row) => (
-      <InspectionTag className={entityTypeClassNames[row.type]}>
+      <InspectionTag
+        className={
+          entityTypeClassNames[row.type.toLowerCase()] ??
+          'border-slate-200 bg-slate-50 text-slate-700'
+        }
+      >
         {row.type}
       </InspectionTag>
     ),
@@ -2085,10 +2025,10 @@ const entityColumns: DataColumn<EntityRow>[] = [
   },
   {
     className: 'w-[11%]',
-    header: 'Environment',
+    header: 'Status',
     render: (row) => (
-      <InspectionTag className={entityEnvironmentClassNames[row.environment]}>
-        {row.environment}
+      <InspectionTag className="border-slate-200 bg-slate-50 text-slate-700">
+        {row.status}
       </InspectionTag>
     ),
   },
@@ -2097,12 +2037,12 @@ const entityColumns: DataColumn<EntityRow>[] = [
     header: 'Labels / Tags',
     render: (row) => (
       <div className="flex flex-wrap gap-2">
-        {row.labels.map((label) => (
+        {Object.entries(row.labels).map(([key, value]) => (
           <span
             className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-700"
-            key={label}
+            key={key}
           >
-            {label}
+            {key}: {value}
           </span>
         ))}
       </div>
@@ -2110,8 +2050,8 @@ const entityColumns: DataColumn<EntityRow>[] = [
   },
   {
     className: 'w-[15%]',
-    header: 'Last Observed ↕',
-    render: (row) => row.lastObserved,
+    header: 'Updated At ↕',
+    render: (row) => formatEntityUpdatedAt(row.updated_at),
   },
   {
     className: 'w-[7%]',
@@ -2139,11 +2079,33 @@ const entityColumns: DataColumn<EntityRow>[] = [
   },
 ];
 
-function EntitySearchBar(): ReactNode {
+function EntitySearchBar({
+  entityType,
+  onEntityTypeChange,
+  onQueryChange,
+  onSearch,
+  query,
+  typeOptions,
+}: {
+  entityType: string;
+  onEntityTypeChange: (value: string) => void;
+  onQueryChange: (value: string) => void;
+  onSearch: () => void;
+  query: string;
+  typeOptions: IncidentOption[];
+}): ReactNode {
   return (
     <section className="mb-3 rounded-md border border-slate-200 bg-white p-4">
       <div className="flex items-center gap-4">
-        <LabeledFilterSelect label="Entity Type" value="All" />
+        <LabeledFilterSelect
+          className="min-w-[280px]"
+          label="Entity Type"
+          labelClassName="max-w-[100px]"
+          onChange={onEntityTypeChange}
+          options={typeOptions}
+          selectedValue={entityType}
+          value="All"
+        />
         <label className="relative block min-w-0 flex-1">
           <span className="sr-only">Search entities</span>
           <Search
@@ -2154,21 +2116,26 @@ function EntitySearchBar(): ReactNode {
           <input
             className="h-12 w-full rounded-md border border-slate-200 bg-white pl-12 pr-4 text-sm text-slate-800 outline-none transition placeholder:text-slate-500 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
             placeholder="Search by name, ID, IP, tag, or keyword..."
+            onChange={(event) => onQueryChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') onSearch();
+            }}
             type="search"
+            value={query}
           />
         </label>
-        <SearchButton />
+        <SearchButton onSearch={onSearch} />
       </div>
     </section>
   );
 }
 
-function EntityListToolbar(): ReactNode {
+function EntityListToolbar({ total }: { total: number }): ReactNode {
   return (
     <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
       <div className="flex items-center gap-3 text-sm font-medium text-slate-700">
         <FileText aria-hidden="true" size={17} />
-        <span>1,248 entities found</span>
+        <span>{total.toLocaleString()} entities found</span>
       </div>
       <div className="flex items-center gap-3">
         <ActionButton message="Entity export started" size="sm" variant="ghost">
@@ -2208,62 +2175,59 @@ function EntityListToolbar(): ReactNode {
   );
 }
 
-function EntityPagination(): ReactNode {
+function EntityPagination({
+  count,
+  onPageChange,
+  page,
+  pageSize,
+  total,
+}: {
+  count: number;
+  onPageChange: (page: number) => void;
+  page: number;
+  pageSize: number;
+  total: number;
+}): ReactNode {
+  const firstItem = count === 0 ? 0 : (page - 1) * pageSize + 1;
+  const lastItem = count === 0 ? 0 : firstItem + count - 1;
+  const hasPreviousPage = page > 1;
+  const hasNextPage = page * pageSize < total;
+
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-5 py-4 text-sm text-slate-600">
-      <span>Showing 1 to 8 of 1,248 entities</span>
+      <span>
+        Showing {firstItem} to {lastItem} of {total} entities
+      </span>
       <div className="flex items-center gap-3">
         <ActionButton
           className="h-8 gap-2 px-3 text-xs"
-          message="Page size selector opened"
+          message={`${pageSize} entities per page`}
           size="sm"
           variant="outline"
         >
-          20 / page
+          {pageSize} / page
           <ChevronDown aria-hidden="true" size={14} />
         </ActionButton>
         <ActionButton
           aria-label="Previous entity page"
           className="size-8 px-0"
-          message="Previous page selected"
+          disabled={!hasPreviousPage}
+          message={`Page ${page - 1} selected`}
+          onClick={() => onPageChange(page - 1)}
           size="sm"
           variant="ghost"
         >
           <ChevronLeft aria-hidden="true" size={15} />
         </ActionButton>
-        {[1, 2, 3].map((page) =>
-          page === 1 ? (
-            <span
-              className="grid size-8 place-items-center rounded-md bg-blue-600 text-xs font-semibold text-white"
-              key={page}
-            >
-              {page}
-            </span>
-          ) : (
-            <ActionButton
-              className="size-8 px-0"
-              key={page}
-              message={`Page ${page} selected`}
-              size="sm"
-              variant="ghost"
-            >
-              {page}
-            </ActionButton>
-          ),
-        )}
-        <span className="px-1 text-slate-400">...</span>
-        <ActionButton
-          className="size-8 px-0"
-          message="Page 63 selected"
-          size="sm"
-          variant="ghost"
-        >
-          63
-        </ActionButton>
+        <span className="grid size-8 place-items-center rounded-md bg-blue-600 text-xs font-semibold text-white">
+          {page}
+        </span>
         <ActionButton
           aria-label="Next entity page"
           className="size-8 px-0"
-          message="Next page selected"
+          disabled={!hasNextPage}
+          message={`Page ${page + 1} selected`}
+          onClick={() => onPageChange(page + 1)}
           size="sm"
           variant="ghost"
         >
@@ -3426,6 +3390,50 @@ export function InspectionsPage(): ReactNode {
 }
 
 export function EntitySearchPage(): ReactNode {
+  const [draftQuery, setDraftQuery] = useState('');
+  const [draftEntityType, setDraftEntityType] = useState('');
+  const [appliedFilters, setAppliedFilters] = useState({
+    query: '',
+    type: '',
+  });
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
+  const entityTypesQuery = useQuery({
+    queryFn: listEntityTypes,
+    queryKey: entityQueryKeys.types(),
+  });
+  const entitiesQuery = useQuery({
+    queryFn: () =>
+      searchEntities({
+        ...appliedFilters,
+        page,
+        page_size: pageSize,
+      }),
+    queryKey: entityQueryKeys.search({
+      ...appliedFilters,
+      page,
+      page_size: pageSize,
+    }),
+  });
+  const entityPage = entitiesQuery.data;
+  const typeOptions = entityTypesQuery.data ?? [];
+
+  const handleSearch = (): void => {
+    const nextFilters = {
+      query: draftQuery.trim(),
+      type: draftEntityType,
+    };
+
+    setPage(1);
+    setAppliedFilters(nextFilters);
+    if (
+      nextFilters.query === appliedFilters.query &&
+      nextFilters.type === appliedFilters.type
+    ) {
+      void entitiesQuery.refetch();
+    }
+  };
+
   return (
     <AppShell activeItem="Search" activeSection="entity">
       <PageHeader
@@ -3434,16 +3442,46 @@ export function EntitySearchPage(): ReactNode {
         title="Search"
       />
       <div className="min-h-0 flex-1 overflow-auto px-6 pb-6">
-        <EntitySearchBar />
+        <EntitySearchBar
+          entityType={draftEntityType}
+          onEntityTypeChange={setDraftEntityType}
+          onQueryChange={setDraftQuery}
+          onSearch={handleSearch}
+          query={draftQuery}
+          typeOptions={typeOptions}
+        />
         <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
-          <EntityListToolbar />
-          <DataTable
-            columns={entityColumns}
-            containerClassName="rounded-none border-0"
-            getRowKey={(row) => row.id}
-            rows={entities}
+          <EntityListToolbar total={entityPage?.total ?? 0} />
+          {entitiesQuery.isPending ? (
+            <IntegrationTableState>Loading entities...</IntegrationTableState>
+          ) : null}
+          {entitiesQuery.isError ? (
+            <IntegrationTableState tone="danger">
+              {entitiesQuery.error.message || 'Failed to load entities.'}
+            </IntegrationTableState>
+          ) : null}
+          {!entitiesQuery.isPending &&
+          !entitiesQuery.isError &&
+          (entityPage?.items.length ?? 0) === 0 ? (
+            <IntegrationTableState>No entities found.</IntegrationTableState>
+          ) : null}
+          {!entitiesQuery.isPending &&
+          !entitiesQuery.isError &&
+          (entityPage?.items.length ?? 0) > 0 ? (
+            <DataTable
+              columns={entityColumns}
+              containerClassName="rounded-none border-0"
+              getRowKey={(row) => row.id}
+              rows={entityPage?.items ?? []}
+            />
+          ) : null}
+          <EntityPagination
+            count={entityPage?.items.length ?? 0}
+            onPageChange={setPage}
+            page={entityPage?.page ?? page}
+            pageSize={entityPage?.page_size ?? pageSize}
+            total={entityPage?.total ?? 0}
           />
-          <EntityPagination />
         </section>
       </div>
     </AppShell>
@@ -4020,7 +4058,11 @@ function UploadFileDialog({
   isOpen: boolean;
   isSubmitting: boolean;
   onClose: () => void;
-  onSubmit: (values: { file?: File | null; name?: string; url?: string }) => void;
+  onSubmit: (values: {
+    file?: File | null;
+    name?: string;
+    url?: string;
+  }) => void;
   uploadType: UploadType;
 }): ReactNode {
   const [name, setName] = useState('');
@@ -4078,14 +4120,16 @@ function UploadFileDialog({
             if (!canSubmit) {
               return;
             }
-            onSubmit({ file, name: name.trim() || undefined, url: url.trim() || undefined });
+            onSubmit({
+              file,
+              name: name.trim() || undefined,
+              url: url.trim() || undefined,
+            });
           }}
         >
           {isLocal ? (
             <div className="block">
-              <span className="text-sm font-medium text-slate-800">
-                File
-              </span>
+              <span className="text-sm font-medium text-slate-800">File</span>
               <button
                 className="mt-2 flex w-full items-center gap-3 rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-left transition hover:border-blue-400 hover:bg-blue-50"
                 onClick={() => {
@@ -4630,7 +4674,8 @@ export function KnowledgeFilesPage(): ReactNode {
                           aria-label={`More actions for ${knowledgeBase.name}`}
                           className="grid size-7 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                           onClick={(event) => {
-                            const rect = event.currentTarget.getBoundingClientRect();
+                            const rect =
+                              event.currentTarget.getBoundingClientRect();
                             setKnowledgeBaseMenuPosition({
                               right: window.innerWidth - rect.right,
                               top: rect.bottom + 4,
@@ -5276,14 +5321,8 @@ export function KnowledgeTestPage(): ReactNode {
 }
 
 const modelFormSchema = z.object({
-  credential_ref: z
-    .string()
-    .trim()
-    .optional(),
-  endpoint: z
-    .string()
-    .trim()
-    .optional(),
+  credential_ref: z.string().trim().optional(),
+  endpoint: z.string().trim().optional(),
   model_name: z
     .string()
     .trim()
@@ -5294,10 +5333,7 @@ const modelFormSchema = z.object({
     .trim()
     .min(1, 'Name is required.')
     .max(128, 'Name must be 128 characters or fewer.'),
-  provider: z
-    .string()
-    .trim()
-    .min(1, 'Provider is required.'),
+  provider: z.string().trim().min(1, 'Provider is required.'),
 });
 
 type ModelFormValues = z.infer<typeof modelFormSchema>;
@@ -5448,9 +5484,7 @@ function ModelFormDialog({
           </label>
 
           <label className="block">
-            <span className="text-sm font-medium text-slate-800">
-              Endpoint
-            </span>
+            <span className="text-sm font-medium text-slate-800">Endpoint</span>
             <input
               className={cn(
                 'mt-2 h-10 w-full rounded-md border bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100',
@@ -5462,9 +5496,7 @@ function ModelFormDialog({
           </label>
 
           <label className="block">
-            <span className="text-sm font-medium text-slate-800">
-              API Key
-            </span>
+            <span className="text-sm font-medium text-slate-800">API Key</span>
             <input
               className={cn(
                 'mt-2 h-10 w-full rounded-md border bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100',
@@ -5680,7 +5712,7 @@ export function SettingsModelsPage(): ReactNode {
         const masked =
           key && key.length > 12
             ? `${key.slice(0, 6)}***${key.slice(-6)}`
-            : key ?? '—';
+            : (key ?? '—');
         return (
           <span className="truncate font-mono text-xs text-slate-600">
             {masked}
@@ -5699,9 +5731,7 @@ export function SettingsModelsPage(): ReactNode {
         return (
           <button
             aria-label={
-              isActive
-                ? `Disable ${model.name}`
-                : `Enable ${model.name}`
+              isActive ? `Disable ${model.name}` : `Enable ${model.name}`
             }
             aria-pressed={isActive}
             className={cn(
@@ -5836,17 +5866,13 @@ export function SettingsModelsPage(): ReactNode {
         ) : null}
         <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
           {modelsQuery.isLoading ? (
-            <IntegrationTableState>
-              Loading models...
-            </IntegrationTableState>
+            <IntegrationTableState>Loading models...</IntegrationTableState>
           ) : modelsQuery.isError ? (
             <IntegrationTableState tone="danger">
               {queryError}
             </IntegrationTableState>
           ) : filteredModels.length === 0 ? (
-            <IntegrationTableState>
-              No models found.
-            </IntegrationTableState>
+            <IntegrationTableState>No models found.</IntegrationTableState>
           ) : (
             <DataTable
               columns={modelColumns}
@@ -5932,23 +5958,14 @@ export function SettingsModelsPage(): ReactNode {
 }
 
 const notificationFormSchema = z.object({
-  channel_type: z
-    .string()
-    .trim()
-    .min(1, 'Type is required.'),
-  credential_ref: z
-    .string()
-    .trim()
-    .optional(),
+  channel_type: z.string().trim().min(1, 'Type is required.'),
+  credential_ref: z.string().trim().optional(),
   name: z
     .string()
     .trim()
     .min(1, 'Name is required.')
     .max(128, 'Name must be 128 characters or fewer.'),
-  target: z
-    .string()
-    .trim()
-    .min(1, 'Target is required.'),
+  target: z.string().trim().min(1, 'Target is required.'),
 });
 
 type NotificationFormValues = z.infer<typeof notificationFormSchema>;
@@ -6093,9 +6110,7 @@ function NotificationFormDialog({
           </label>
 
           <label className="block">
-            <span className="text-sm font-medium text-slate-800">
-              Token
-            </span>
+            <span className="text-sm font-medium text-slate-800">Token</span>
             <input
               className={cn(
                 'mt-2 h-10 w-full rounded-md border bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100',
@@ -6229,7 +6244,9 @@ export function SettingsNotificationsPage(): ReactNode {
     deleteNotificationMutation.mutate(notification.id);
   }
 
-  function handleToggleNotificationStatus(notification: NotificationConfig): void {
+  function handleToggleNotificationStatus(
+    notification: NotificationConfig,
+  ): void {
     updateNotificationMutation.mutate({
       id: notification.id,
       request: {
@@ -6278,7 +6295,7 @@ export function SettingsNotificationsPage(): ReactNode {
         const masked =
           token && token.length > 12
             ? `${token.slice(0, 6)}***${token.slice(-6)}`
-            : token ?? '—';
+            : (token ?? '—');
         return (
           <span className="truncate font-mono text-xs text-slate-600">
             {masked}

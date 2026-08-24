@@ -184,7 +184,7 @@
 
 ---
 
-## 1.5 observability-catalog
+## 1.5 observability-data-catalog
 
 | 分类                  | 技术选型                    |
 | ------------------- | ----------------------- |

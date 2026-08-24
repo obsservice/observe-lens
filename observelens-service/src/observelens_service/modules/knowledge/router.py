@@ -16,6 +16,7 @@ def get_proxy_client() -> ReverseProxyClient:
     return ReverseProxyClient(
         str(settings.knowledge_base_url) if settings.knowledge_base_url else None,
         settings.knowledge_base_timeout_seconds,
+        service_name="Knowledge Base",
     )
 
 

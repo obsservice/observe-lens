@@ -26,15 +26,21 @@ RESPONSE_HEADERS_MANAGED_BY_GATEWAY = {
 
 
 class ReverseProxyClient:
-    def __init__(self, upstream_base_url: str | None, timeout_seconds: float) -> None:
+    def __init__(
+        self,
+        upstream_base_url: str | None,
+        timeout_seconds: float,
+        service_name: str = "Upstream service",
+    ) -> None:
         self._upstream_base_url = upstream_base_url.rstrip("/") if upstream_base_url else None
         self._timeout = httpx.Timeout(timeout_seconds, connect=min(timeout_seconds, 5.0))
+        self._service_name = service_name
 
-    async def proxy(self, request: Request) -> Response:
+    async def proxy(self, request: Request, *, strip_path_prefix: str = "") -> Response:
         if self._upstream_base_url is None:
-            raise DependencyUnavailableError("Knowledge Base")
+            raise DependencyUnavailableError(self._service_name)
 
-        target_url = self._build_target_url(request)
+        target_url = self._build_target_url(request, strip_path_prefix)
         headers = self._forward_headers(request.headers)
         body = await request.body()
 
@@ -47,7 +53,7 @@ class ReverseProxyClient:
                     headers=headers,
                 )
         except httpx.HTTPError as exc:
-            raise DependencyUnavailableError("Knowledge Base") from exc
+            raise DependencyUnavailableError(self._service_name) from exc
 
         return Response(
             content=upstream_response.content,
@@ -56,8 +62,13 @@ class ReverseProxyClient:
             media_type=upstream_response.headers.get("content-type"),
         )
 
-    def _build_target_url(self, request: Request) -> str:
+    def _build_target_url(self, request: Request, strip_path_prefix: str = "") -> str:
         path = request.url.path
+        if strip_path_prefix:
+            if path == strip_path_prefix:
+                path = "/"
+            elif path.startswith(f"{strip_path_prefix}/"):
+                path = path[len(strip_path_prefix) :]
         query = request.url.query
         target_url = f"{self._upstream_base_url}{path}"
         if query:
@@ -76,7 +87,5 @@ class ReverseProxyClient:
     @staticmethod
     def _response_headers(headers: Mapping[str, str]) -> dict[str, str]:
         return {
-            name: value
-            for name, value in headers.items()
-            if name.lower() not in HOP_BY_HOP_HEADERS
+            name: value for name, value in headers.items() if name.lower() not in HOP_BY_HOP_HEADERS
         }
