@@ -9,9 +9,9 @@ export const metadata: Metadata = {
   title: 'ObserveLens',
   description: 'AI-native root cause analysis platform',
   icons: {
-    apple: '/images/observelens-icon.png',
-    icon: '/images/observelens-icon.png',
-    shortcut: '/images/observelens-icon.png',
+    apple: '/images/observelens-icon.svg?v=4',
+    icon: '/images/observelens-icon.svg?v=4',
+    shortcut: '/images/observelens-icon.svg?v=4',
   },
 };
 
