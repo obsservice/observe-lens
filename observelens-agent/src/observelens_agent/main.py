@@ -20,6 +20,7 @@ warnings.filterwarnings(
 from observelens_agent.agent.graph import build_agent_graph  # noqa: E402
 from observelens_agent.agent.intents.recognizer import build_intent_recognizer  # noqa: E402
 from observelens_agent.api import api_router  # noqa: E402
+from observelens_agent.clients.catalog import CatalogClient  # noqa: E402
 from observelens_agent.common.exceptions import DomainError, domain_error_handler  # noqa: E402
 from observelens_agent.config.settings import get_settings  # noqa: E402
 
@@ -29,7 +30,14 @@ logger = structlog.get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
-    app.state.agent_graph = build_agent_graph(build_intent_recognizer(settings)).compile()
+    app.state.agent_graph = build_agent_graph(
+        intent_recognizer=build_intent_recognizer(settings),
+        catalog_client=CatalogClient(
+            base_url=settings.catalog_base_url,
+            timeout_seconds=settings.catalog_timeout_seconds,
+            workspace_id=settings.catalog_workspace_id,
+        ),
+    ).compile()
     logger.info("service_started", environment=settings.environment)
     yield
     logger.info("service_stopped")

@@ -25,6 +25,14 @@ make run
 `intent_reason` 字段中，方便后续规划与审计。未配置 LLM 或模型不可用时会安全降级为
 `general` 意图。
 
+### `get_info` 实体详情查询
+
+当请求命中 `/get_info` 时，Agent 会从 Web 的 `@实体` 引用中提取 `entity_id`，并调用
+`GET {OBSERVELENS_AGENT_CATALOG_BASE_URL}/api/v1/workspaces/{workspace_id}/entities/{entity_id}`
+获取资源详情。其中 `workspace_id` 由 `OBSERVELENS_AGENT_CATALOG_WORKSPACE_ID` 配置，默认
+`ws000003`。未引用实体、Catalog 不可用或实体不存在时，Agent 会返回可读的错误提示而不中断
+会话流。
+
 开发质量检查：
 
 ```bash

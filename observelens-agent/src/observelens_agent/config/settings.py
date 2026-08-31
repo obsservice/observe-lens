@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     )
 
     cors_allowed_origins: str = "http://localhost:3080,http://127.0.0.1:3080"
+    catalog_base_url: str | None = None
+    catalog_timeout_seconds: float = 10.0
+    catalog_workspace_id: str = "ws000003"
     environment: str = "development"
     intent_llm_api_key: str | None = None
     intent_llm_base_url: str | None = None
