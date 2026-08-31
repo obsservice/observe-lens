@@ -44,6 +44,17 @@ make run
 `OBSERVELENS_AGENT_METRIC_QUERY_DEFAULT_WINDOW_MINUTES` 控制，也支持“最近 30 分钟”“last 2h”等
 时间范围，采样间隔由 `OBSERVELENS_AGENT_METRIC_QUERY_STEP` 控制。
 
+### `analysis_incident` 故障调查
+
+`/analysis_incident` 会以 AESP 自定义 SSE 事件流逐步展示调查过程：识别故障实体、检索 RAG 架构
+上下文、读取 Catalog 的 Dataset 与拓扑、制定指标和日志查询计划、通过 MCP Gateway 获取真实遥测数据、
+识别异常、推理根因并生成报告。前端可直接消费 `plan.generated`、`step.*`、
+`observation.generated`、`finding.generated` 与 `output.progress` 事件。
+
+知识库检索默认请求 `OBSERVELENS_AGENT_KNOWLEDGE_BASE_URL` 的
+`/api/v1/knowledge/retrieval/search`，并使用配置的租户与用户请求头。Catalog 当前只提供查询语义和拓扑；
+真实指标与日志分别通过 MCP 的 `prom_range_query` 和 `loki_query_logs` 获取。
+
 开发质量检查：
 
 ```bash

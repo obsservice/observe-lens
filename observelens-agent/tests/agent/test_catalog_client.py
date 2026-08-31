@@ -17,6 +17,17 @@ def test_catalog_client_uses_workspace_and_encodes_entity_id() -> None:
         "http://localhost:3083/api/v1/workspaces/ws000003/"
         "entities/k8s.pod%3Aprod-api-123/dataset?type=metric"
     )
+    assert client._datasets_url("k8s.pod:prod-api-123", "all") == (
+        "http://localhost:3083/api/v1/workspaces/ws000003/"
+        "entities/k8s.pod%3Aprod-api-123/dataset?type=all"
+    )
+    assert client._topology_url("k8s.pod:prod-api-123", 3) == (
+        "http://localhost:3083/api/v1/workspaces/ws000003/"
+        "entities/k8s.pod%3Aprod-api-123/topology?depth=3"
+    )
+    assert client._entities_search_url() == (
+        "http://localhost:3083/api/v1/workspaces/ws000003/entities/search"
+    )
 
 
 def test_catalog_client_unwraps_catalog_data_response() -> None:

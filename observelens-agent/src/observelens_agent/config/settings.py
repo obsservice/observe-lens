@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     metric_query_default_window_minutes: int = 60
     metric_query_step: str = "60s"
     metric_query_max_definitions: int = 3
+    knowledge_base_url: str | None = "http://localhost:3085"
+    knowledge_base_timeout_seconds: float = 10.0
+    knowledge_base_tenant_id: int = 1
+    knowledge_base_user_id: int = 1
+    incident_rag_top_k: int = 5
+    incident_log_query_limit: int = 200
     environment: str = "development"
     intent_llm_api_key: str | None = None
     intent_llm_base_url: str | None = None
