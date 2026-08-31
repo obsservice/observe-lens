@@ -21,6 +21,18 @@ interface CatalogEntityPage {
   total: number;
 }
 
+interface CatalogEntityRelation {
+  __relation_type__: string;
+  __source_entity_uuid__: string;
+  __target_entity_uuid__: string;
+}
+
+interface CatalogTopology {
+  edges: CatalogEntityRelation[];
+  nodes: CatalogEntity[];
+  root_entity_id: string;
+}
+
 interface CatalogEntityTypeModel {
   metadata: {
     displayName?: string;
@@ -61,6 +73,24 @@ export interface SearchEntitiesParams {
   type?: string;
 }
 
+export interface TopologyEdge {
+  id: string;
+  source_entity_id: string;
+  target_entity_id: string;
+  type: string;
+}
+
+export interface EntityTopology {
+  edges: TopologyEdge[];
+  nodes: Entity[];
+  root_entity_id: string;
+}
+
+export interface GetEntityTopologyParams {
+  depth?: number;
+  direction?: 'both' | 'downstream' | 'upstream';
+}
+
 const CATALOG_WORKSPACE_ID =
   process.env.NEXT_PUBLIC_CATALOG_WORKSPACE_ID ?? 'ws000003';
 
@@ -73,6 +103,8 @@ export const entityQueryKeys = {
   search: (params: SearchEntitiesParams = {}) =>
     [...entityQueryKeys.all, 'search', params] as const,
   types: () => [...entityQueryKeys.all, 'types'] as const,
+  topology: (entityId: string, params: GetEntityTopologyParams = {}) =>
+    [...entityQueryKeys.all, 'topology', entityId, params] as const,
 };
 
 function toLabelValue(value: unknown): string | null {
@@ -117,6 +149,19 @@ function toEntityPage(page: CatalogEntityPage): EntityPage {
     page: page.page + 1,
     page_size: page.limit,
     total: page.total,
+  };
+}
+
+function toEntityTopology(topology: CatalogTopology): EntityTopology {
+  return {
+    edges: topology.edges.map((edge, index) => ({
+      id: `${edge.__source_entity_uuid__}:${edge.__relation_type__}:${edge.__target_entity_uuid__}:${index}`,
+      source_entity_id: edge.__source_entity_uuid__,
+      target_entity_id: edge.__target_entity_uuid__,
+      type: edge.__relation_type__,
+    })),
+    nodes: topology.nodes.map(toEntity),
+    root_entity_id: topology.root_entity_id,
   };
 }
 
@@ -167,4 +212,19 @@ export async function searchEntities(
   );
 
   return toEntityPage(response.data);
+}
+
+export async function getEntityTopology(
+  entityId: string,
+  params: GetEntityTopologyParams = {},
+): Promise<EntityTopology> {
+  const searchParams = new URLSearchParams({
+    depth: String(params.depth ?? 3),
+    direction: params.direction ?? 'both',
+  });
+  const response = await apiRequest<CatalogApiResponse<CatalogTopology>>(
+    `${catalogWorkspacePath}/entities/${encodeURIComponent(entityId)}/topology?${searchParams.toString()}`,
+  );
+
+  return toEntityTopology(response.data);
 }

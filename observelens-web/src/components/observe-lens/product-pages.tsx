@@ -15,6 +15,29 @@ import {
   type StatusTone,
 } from '@/components/observe-lens/status-badge';
 import {
+  createInspection,
+  deleteInspection,
+  disableInspection,
+  enableInspection,
+  executeInspection,
+  inspectionQueryKeys,
+  listInspections,
+  listInspectionSchedules,
+  listInspectionStatuses,
+  type Inspection,
+  type InspectionOption,
+  type InspectionWriteRequest,
+} from '@/lib/api/inspections';
+import {
+  conversationQueryKeys,
+  listConversations,
+  listMessages,
+  messageQueryKeys,
+  type AESPEvent,
+  type Conversation,
+  type Message,
+} from '@/lib/api/conversations';
+import {
   createIncidentIntegration,
   deleteIncidentIntegration,
   incidentQueryKeys,
@@ -36,9 +59,11 @@ import {
 } from '@/lib/api/incidents';
 import {
   entityQueryKeys,
+  getEntityTopology,
   listEntityTypes,
   searchEntities,
   type Entity,
+  type EntityTopology,
 } from '@/lib/api/entities';
 import {
   createKnowledgeBase,
@@ -1482,163 +1507,28 @@ function KnowledgeBaseFormDialog({
   );
 }
 
-interface InspectionRow {
-  createdAt: string;
-  environment: 'Production' | 'Staging';
-  id: string;
-  lastRun: string;
-  lastRunState?: 'Failed' | 'Running...' | 'Success';
-  name: string;
-  nextRun: string;
-  scope: string;
-  status: 'Completed' | 'Failed' | 'In Progress' | 'Scheduled';
-  type:
-    | 'Alert'
-    | 'Connectivity'
-    | 'Health'
-    | 'Log'
-    | 'Network'
-    | 'Performance'
-    | 'Resource'
-    | 'Security';
-}
+const inspectionFormSchema = z.object({
+  description: z.string().trim().max(2000).optional(),
+  enabled: z.boolean(),
+  input_template: z
+    .string()
+    .trim()
+    .min(1, 'Inspection prompt is required.')
+    .max(4000, 'Inspection prompt must be 4000 characters or fewer.'),
+  name: z
+    .string()
+    .trim()
+    .min(1, 'Inspection name is required.')
+    .max(128, 'Inspection name must be 128 characters or fewer.'),
+  schedule: z.string().min(1, 'Schedule is required.'),
+  scope: z
+    .string()
+    .trim()
+    .min(1, 'Scope is required.')
+    .max(128, 'Scope must be 128 characters or fewer.'),
+});
 
-const inspections: InspectionRow[] = [
-  {
-    createdAt: '2024-05-18 09:15:22',
-    environment: 'Production',
-    id: 'INS-20240520-001',
-    lastRun: '2024-05-20 10:30:45',
-    lastRunState: 'Success',
-    name: 'Kubernetes Health Check',
-    nextRun: '2024-05-21 10:30:00',
-    scope: 'All Clusters (3)',
-    status: 'Completed',
-    type: 'Health',
-  },
-  {
-    createdAt: '2024-05-19 14:22:10',
-    environment: 'Production',
-    id: 'INS-20240520-002',
-    lastRun: '—',
-    lastRunState: 'Running...',
-    name: 'Database Connectivity',
-    nextRun: '—',
-    scope: 'Databases (12)',
-    status: 'In Progress',
-    type: 'Connectivity',
-  },
-  {
-    createdAt: '2024-05-17 16:45:33',
-    environment: 'Staging',
-    id: 'INS-20240520-003',
-    lastRun: '2024-05-20 09:15:30',
-    lastRunState: 'Success',
-    name: 'Cloud Resource Check',
-    nextRun: '2024-05-21 09:00:00',
-    scope: 'AWS Account',
-    status: 'Completed',
-    type: 'Resource',
-  },
-  {
-    createdAt: '2024-05-16 11:05:18',
-    environment: 'Production',
-    id: 'INS-20240520-004',
-    lastRun: '2024-05-20 08:45:12',
-    lastRunState: 'Failed',
-    name: 'Critical Alerts Review',
-    nextRun: '2024-05-20 11:00:00',
-    scope: 'All Services',
-    status: 'Failed',
-    type: 'Alert',
-  },
-  {
-    createdAt: '2024-05-15 10:30:45',
-    environment: 'Production',
-    id: 'INS-20240520-005',
-    lastRun: '—',
-    name: 'Security Compliance Scan',
-    nextRun: '2024-05-20 12:00:00',
-    scope: 'All Resources',
-    status: 'Scheduled',
-    type: 'Security',
-  },
-  {
-    createdAt: '2024-05-14 15:20:10',
-    environment: 'Staging',
-    id: 'INS-20240520-006',
-    lastRun: '2024-05-19 23:10:05',
-    lastRunState: 'Success',
-    name: 'Log Pipeline Check',
-    nextRun: '2024-05-20 23:00:00',
-    scope: 'Logging Pipeline',
-    status: 'Completed',
-    type: 'Log',
-  },
-  {
-    createdAt: '2024-05-13 13:10:22',
-    environment: 'Production',
-    id: 'INS-20240520-007',
-    lastRun: '2024-05-19 22:05:45',
-    lastRunState: 'Failed',
-    name: 'Performance Baseline',
-    nextRun: '2024-05-20 22:00:00',
-    scope: 'Core Services (8)',
-    status: 'Failed',
-    type: 'Performance',
-  },
-  {
-    createdAt: '2024-05-12 09:40:11',
-    environment: 'Production',
-    id: 'INS-20240520-008',
-    lastRun: '—',
-    name: 'Network Connectivity',
-    nextRun: '2024-05-21 08:40:00',
-    scope: 'VPC Networks (2)',
-    status: 'Scheduled',
-    type: 'Network',
-  },
-];
-
-const inspectionTone: Record<InspectionRow['status'], StatusTone> = {
-  Completed: 'emerald',
-  Failed: 'red',
-  'In Progress': 'blue',
-  Scheduled: 'violet',
-};
-
-const inspectionTypeClassNames: Record<InspectionRow['type'], string> = {
-  Alert: 'border-red-200 bg-red-50 text-red-700',
-  Connectivity: 'border-amber-200 bg-amber-50 text-orange-700',
-  Health: 'border-blue-200 bg-blue-50 text-blue-700',
-  Log: 'border-blue-200 bg-blue-50 text-blue-700',
-  Network: 'border-blue-200 bg-blue-50 text-blue-700',
-  Performance: 'border-amber-200 bg-amber-50 text-orange-700',
-  Resource: 'border-violet-200 bg-violet-50 text-violet-700',
-  Security: 'border-cyan-200 bg-cyan-50 text-cyan-700',
-};
-
-const inspectionEnvironmentClassNames: Record<
-  InspectionRow['environment'],
-  string
-> = {
-  Production: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  Staging: 'border-blue-200 bg-blue-50 text-blue-700',
-};
-
-const inspectionIconMap: Record<
-  InspectionRow['type'],
-  { className: string; icon: typeof Activity }
-> = {
-  Alert: { className: 'text-rose-500', icon: BellRing },
-  Connectivity: { className: 'text-orange-500', icon: Database },
-  Health: { className: 'text-blue-600', icon: Activity },
-  Log: { className: 'text-blue-600', icon: FileText },
-  Network: { className: 'text-blue-600', icon: GitBranch },
-  Performance: { className: 'text-orange-500', icon: Zap },
-  Resource: { className: 'text-violet-600', icon: Box },
-  Security: { className: 'text-cyan-600', icon: ShieldCheck },
-};
+type InspectionFormValues = z.infer<typeof inspectionFormSchema>;
 
 function InspectionTag({
   children,
@@ -1659,221 +1549,266 @@ function InspectionTag({
   );
 }
 
-function InspectionStatusBadge({
-  status,
+function InspectionTableState({
+  children,
+  tone = 'default',
 }: {
-  status: InspectionRow['status'];
+  children: ReactNode;
+  tone?: 'danger' | 'default';
 }): ReactNode {
   return (
-    <StatusBadge tone={inspectionTone[status]}>
-      <span
-        aria-hidden="true"
-        className={cn(
-          'mr-1.5 size-1.5 rounded-full',
-          status === 'Completed' && 'bg-emerald-500',
-          status === 'In Progress' && 'bg-blue-500',
-          status === 'Failed' && 'bg-red-500',
-          status === 'Scheduled' && 'bg-violet-500',
-        )}
-      />
-      {status}
-    </StatusBadge>
+    <div
+      className={cn(
+        'flex min-h-[260px] items-center justify-center px-6 text-sm',
+        tone === 'danger' ? 'text-red-600' : 'text-slate-500',
+      )}
+    >
+      {children}
+    </div>
   );
 }
 
-const inspectionColumns: DataColumn<InspectionRow>[] = [
-  {
-    className: 'w-[17%]',
-    header: 'Name ↕',
-    render: (row) => {
-      const Icon = inspectionIconMap[row.type].icon;
+function inspectionStatusTone(status: Inspection['status']): StatusTone {
+  switch (status) {
+    case 'ENABLED':
+      return 'emerald';
+    case 'DISABLED':
+      return 'slate';
+    case 'RUNNING':
+      return 'blue';
+    case 'SUCCESS':
+      return 'emerald';
+    case 'FAILED':
+      return 'red';
+  }
+}
 
-      return (
-        <div className="flex items-center gap-3">
-          <Icon
-            aria-hidden="true"
-            className={inspectionIconMap[row.type].className}
-            size={22}
-          />
-          <div className="min-w-0">
-            <p className="truncate font-semibold text-slate-950">{row.name}</p>
-            <p className="mt-1 text-xs text-slate-600">{row.id}</p>
-          </div>
-        </div>
-      );
+function InspectionFormDialog({
+  errorMessage,
+  isOpen,
+  isSubmitting,
+  onClose,
+  onSubmit,
+  scheduleOptions,
+}: {
+  errorMessage: string | null;
+  isOpen: boolean;
+  isSubmitting: boolean;
+  onClose: () => void;
+  onSubmit: (values: InspectionFormValues) => Promise<void>;
+  scheduleOptions: InspectionOption[];
+}): ReactNode {
+  const {
+    formState: { errors },
+    handleSubmit,
+    register,
+    reset,
+  } = useForm<InspectionFormValues>({
+    defaultValues: {
+      description: '',
+      enabled: true,
+      input_template: 'Run a health inspection for {{scope}}.',
+      name: '',
+      schedule: '',
+      scope: '',
     },
-  },
-  {
-    className: 'w-[8%]',
-    header: 'Type',
-    render: (row) => (
-      <InspectionTag className={inspectionTypeClassNames[row.type]}>
-        {row.type}
-      </InspectionTag>
-    ),
-  },
-  {
-    className: 'w-[10%]',
-    header: 'Environment ↕',
-    render: (row) => (
-      <InspectionTag
-        className={inspectionEnvironmentClassNames[row.environment]}
-      >
-        {row.environment}
-      </InspectionTag>
-    ),
-  },
-  { className: 'w-[11%]', header: 'Scope', render: (row) => row.scope },
-  {
-    className: 'w-[10%]',
-    header: 'Status ↕',
-    render: (row) => <InspectionStatusBadge status={row.status} />,
-  },
-  {
-    className: 'w-[12%]',
-    header: 'Last Run ↕',
-    render: (row) => (
-      <div>
-        <p>{row.lastRun}</p>
-        {row.lastRunState ? (
-          <p
-            className={cn(
-              'mt-1 text-xs',
-              row.lastRunState === 'Success' && 'text-emerald-600',
-              row.lastRunState === 'Failed' && 'text-red-600',
-              row.lastRunState === 'Running...' && 'text-blue-600',
-            )}
-          >
-            {row.lastRunState}
-          </p>
-        ) : null}
-      </div>
-    ),
-  },
-  { className: 'w-[12%]', header: 'Next Run ↕', render: (row) => row.nextRun },
-  {
-    className: 'w-[12%]',
-    header: 'Created At ↕',
-    render: (row) => row.createdAt,
-  },
-  {
-    className: 'w-[8%]',
-    header: 'Actions',
-    render: (row) => (
-      <div className="flex items-center gap-2">
-        <ActionButton
-          aria-label={`${row.status === 'In Progress' ? 'Stop' : 'Run'} ${row.name}`}
-          className="size-8 p-0 text-blue-600 hover:text-blue-700"
-          message={`${row.name} ${row.status === 'In Progress' ? 'stopped' : 'started'}`}
-          size="sm"
-          variant="ghost"
-        >
-          {row.status === 'In Progress' ? (
-            <Square aria-hidden="true" size={13} />
-          ) : (
-            <Play aria-hidden="true" size={14} />
-          )}
-        </ActionButton>
-        <LinkButton
-          ariaLabel={`Open ${row.name} report`}
-          className="size-8 border-slate-200 bg-slate-100 p-0 text-blue-600 hover:bg-slate-200 hover:text-blue-700"
-          href="/chat/observations"
-        >
-          <FileText aria-hidden="true" size={14} />
-        </LinkButton>
-        <ActionButton
-          aria-label={`More actions for ${row.name}`}
-          className="size-8 p-0 text-blue-600 hover:text-blue-700"
-          message={`${row.name} actions opened`}
-          size="sm"
-          variant="ghost"
-        >
-          <MoreVertical aria-hidden="true" size={15} />
-        </ActionButton>
-      </div>
-    ),
-  },
-];
+    resolver: zodResolver(inspectionFormSchema),
+  });
 
-const inspectionStats = [
-  {
-    delta: null,
-    icon: Calendar,
-    iconClassName: 'bg-blue-50 text-blue-600',
-    label: 'Total Inspections',
-    value: '48',
-  },
-  {
-    delta: '↑ 12%',
-    deltaClassName: 'text-emerald-600',
-    icon: CheckCircle2,
-    iconClassName: 'bg-emerald-50 text-emerald-600',
-    label: 'Completed',
-    value: '28',
-  },
-  {
-    delta: null,
-    icon: Clock,
-    iconClassName: 'bg-amber-50 text-orange-500',
-    label: 'In Progress',
-    value: '6',
-  },
-  {
-    delta: '↑ 33%',
-    deltaClassName: 'text-red-600',
-    icon: Square,
-    iconClassName: 'bg-red-50 text-red-500',
-    label: 'Failed',
-    value: '8',
-  },
-  {
-    delta: '↓ 25%',
-    deltaClassName: 'text-emerald-600',
-    icon: Clock,
-    iconClassName: 'bg-violet-50 text-violet-600',
-    label: 'Scheduled',
-    value: '6',
-  },
-] as const;
+  const closeDialog = (): void => {
+    if (isSubmitting) return;
+    reset();
+    onClose();
+  };
 
-function InspectionStatsGrid(): ReactNode {
+  if (!isOpen) return null;
+
   return (
-    <div className="mb-3 grid grid-cols-5 gap-4">
-      {inspectionStats.map((stat) => {
-        const Icon = stat.icon;
+    <div
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 px-4"
+      role="dialog"
+    >
+      <div className="w-full max-w-[560px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl shadow-slate-300/40">
+        <div className="flex items-start justify-between border-b border-slate-200 px-6 py-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">
+              New Inspection
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Create a scheduled inspection using a real inspection prompt.
+            </p>
+          </div>
+          <button
+            aria-label="Close inspection dialog"
+            className="grid size-8 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+            disabled={isSubmitting}
+            onClick={closeDialog}
+            type="button"
+          >
+            ×
+          </button>
+        </div>
+        <form
+          className="space-y-4 px-6 py-5"
+          onSubmit={(event) => {
+            void handleSubmit(onSubmit)(event);
+          }}
+        >
+          <label className="block">
+            <RequiredLabel>Name</RequiredLabel>
+            <input
+              className={cn(
+                'mt-2 h-10 w-full rounded-md border bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100',
+                errors.name ? 'border-red-300' : 'border-slate-200',
+              )}
+              placeholder="Production Kubernetes health check"
+              {...register('name')}
+            />
+            {errors.name ? (
+              <span className="mt-1 block text-xs text-red-600">
+                {errors.name.message}
+              </span>
+            ) : null}
+          </label>
+          <label className="block">
+            <RequiredLabel>Scope</RequiredLabel>
+            <input
+              className={cn(
+                'mt-2 h-10 w-full rounded-md border bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100',
+                errors.scope ? 'border-red-300' : 'border-slate-200',
+              )}
+              placeholder="production cluster"
+              {...register('scope')}
+            />
+            {errors.scope ? (
+              <span className="mt-1 block text-xs text-red-600">
+                {errors.scope.message}
+              </span>
+            ) : null}
+          </label>
+          <label className="block">
+            <RequiredLabel>Schedule</RequiredLabel>
+            <select
+              className={cn(
+                'mt-2 h-10 w-full rounded-md border bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100',
+                errors.schedule ? 'border-red-300' : 'border-slate-200',
+              )}
+              disabled={scheduleOptions.length === 0}
+              {...register('schedule')}
+            >
+              <option value="">
+                {scheduleOptions.length === 0
+                  ? 'Loading available schedules...'
+                  : 'Select a schedule'}
+              </option>
+              {scheduleOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {errors.schedule ? (
+              <span className="mt-1 block text-xs text-red-600">
+                {errors.schedule.message}
+              </span>
+            ) : null}
+          </label>
+          <label className="block">
+            <RequiredLabel>Inspection Prompt</RequiredLabel>
+            <textarea
+              className={cn(
+                'mt-2 min-h-24 w-full rounded-md border bg-white px-3 py-2 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100',
+                errors.input_template ? 'border-red-300' : 'border-slate-200',
+              )}
+              {...register('input_template')}
+            />
+            {errors.input_template ? (
+              <span className="mt-1 block text-xs text-red-600">
+                {errors.input_template.message}
+              </span>
+            ) : null}
+          </label>
+          <label className="block">
+            <span className="text-sm font-medium text-slate-800">
+              Description
+            </span>
+            <textarea
+              className="mt-2 min-h-20 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              placeholder="Optional inspection purpose and operating context"
+              {...register('description')}
+            />
+          </label>
+          <label className="flex items-center gap-2 text-sm text-slate-800">
+            <input
+              className="size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              type="checkbox"
+              {...register('enabled')}
+            />
+            Enable after creation
+          </label>
+          {errorMessage ? (
+            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+              {errorMessage}
+            </p>
+          ) : null}
+          <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
+            <button
+              className="h-10 rounded-md border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSubmitting}
+              onClick={closeDialog}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className="h-10 rounded-md bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSubmitting || scheduleOptions.length === 0}
+              type="submit"
+            >
+              {isSubmitting ? 'Creating...' : 'Create Inspection'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
 
+function InspectionStatsGrid({
+  enabled,
+  loaded,
+  total,
+}: {
+  enabled: number;
+  loaded: number;
+  total: number;
+}): ReactNode {
+  const stats = [
+    { icon: Calendar, label: 'Total Inspections', value: total },
+    { icon: CheckCircle2, label: 'Enabled', value: enabled },
+    { icon: Clock, label: 'Disabled', value: Math.max(loaded - enabled, 0) },
+    { icon: List, label: 'Loaded', value: loaded },
+  ];
+
+  return (
+    <div className="mb-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {stats.map((stat) => {
+        const Icon = stat.icon;
         return (
           <section
             className="rounded-md border border-slate-200 bg-white p-4"
             key={stat.label}
           >
             <div className="flex items-center gap-4">
-              <span
-                className={cn(
-                  'grid size-11 place-items-center rounded-full',
-                  stat.iconClassName,
-                )}
-              >
+              <span className="grid size-11 place-items-center rounded-full bg-blue-50 text-blue-600">
                 <Icon aria-hidden="true" size={22} />
               </span>
               <div>
                 <p className="text-xs text-slate-500">{stat.label}</p>
-                <div className="mt-1 flex items-end gap-3">
-                  <span className="text-2xl font-semibold leading-none text-slate-950">
-                    {stat.value}
-                  </span>
-                  {stat.delta ? (
-                    <span
-                      className={cn(
-                        'pb-0.5 text-xs font-semibold',
-                        stat.deltaClassName,
-                      )}
-                    >
-                      {stat.delta}
-                    </span>
-                  ) : null}
-                </div>
-                <p className="mt-2 text-xs text-slate-500">vs last 7 days</p>
+                <p className="mt-1 text-2xl font-semibold leading-none text-slate-950">
+                  {stat.value}
+                </p>
               </div>
             </div>
           </section>
@@ -1883,60 +1818,172 @@ function InspectionStatsGrid(): ReactNode {
   );
 }
 
-function InspectionPagination(): ReactNode {
+function InspectionPagination({
+  count,
+  onPageChange,
+  page,
+  pageSize,
+  total,
+}: {
+  count: number;
+  onPageChange: (page: number) => void;
+  page: number;
+  pageSize: number;
+  total: number;
+}): ReactNode {
+  const firstItem = count === 0 ? 0 : (page - 1) * pageSize + 1;
+  const lastItem = Math.min((page - 1) * pageSize + count, total);
+  const totalPages = Math.max(Math.ceil(total / pageSize), 1);
+
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-5 py-4 text-sm text-slate-600">
-      <span>Showing 1 to 8 of 48 inspections</span>
+      <span>
+        Showing {firstItem} to {lastItem} of {total} inspections
+      </span>
       <div className="flex items-center gap-3">
-        <ActionButton
-          className="h-8 gap-2 px-3 text-xs"
-          message="Page size selector opened"
-          size="sm"
-          variant="outline"
-        >
-          10 / page
-          <ChevronDown aria-hidden="true" size={14} />
-        </ActionButton>
-        <ActionButton
+        <span className="text-xs text-slate-500">{pageSize} / page</span>
+        <button
           aria-label="Previous inspection page"
-          className="size-8 px-0"
-          message="Previous page selected"
-          size="sm"
-          variant="ghost"
+          className="grid size-8 place-items-center rounded-md text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={page <= 1}
+          onClick={() => onPageChange(page - 1)}
+          type="button"
         >
           <ChevronLeft aria-hidden="true" size={15} />
-        </ActionButton>
-        {[1, 2, 3, 4, 5].map((page) =>
-          page === 1 ? (
-            <span
-              className="grid size-8 place-items-center rounded-md bg-blue-600 text-xs font-semibold text-white"
-              key={page}
-            >
-              {page}
-            </span>
-          ) : (
-            <ActionButton
-              className="size-8 px-0"
-              key={page}
-              message={`Page ${page} selected`}
-              size="sm"
-              variant="ghost"
-            >
-              {page}
-            </ActionButton>
-          ),
-        )}
-        <ActionButton
+        </button>
+        <span className="grid size-8 place-items-center rounded-md bg-blue-600 text-xs font-semibold text-white">
+          {page}
+        </span>
+        <button
           aria-label="Next inspection page"
-          className="size-8 px-0"
-          message="Next page selected"
-          size="sm"
-          variant="ghost"
+          className="grid size-8 place-items-center rounded-md text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={page >= totalPages}
+          onClick={() => onPageChange(page + 1)}
+          type="button"
         >
           <ChevronRight aria-hidden="true" size={15} />
-        </ActionButton>
+        </button>
       </div>
     </div>
+  );
+}
+
+function InspectionTable({
+  deletingId,
+  executingId,
+  onDelete,
+  onExecute,
+  onToggleEnabled,
+  rows,
+  togglingId,
+}: {
+  deletingId: number | null;
+  executingId: number | null;
+  onDelete: (inspection: Inspection) => void;
+  onExecute: (inspection: Inspection) => void;
+  onToggleEnabled: (inspection: Inspection) => void;
+  rows: Inspection[];
+  togglingId: number | null;
+}): ReactNode {
+  const columns: DataColumn<Inspection>[] = [
+    {
+      className: 'w-[22%]',
+      header: 'Name',
+      render: (row) => (
+        <div className="min-w-0">
+          <p className="truncate font-semibold text-slate-950">{row.name}</p>
+          {row.description ? (
+            <p className="mt-1 truncate text-xs text-slate-500">
+              {row.description}
+            </p>
+          ) : null}
+        </div>
+      ),
+    },
+    { className: 'w-[18%]', header: 'Scope', render: (row) => row.scope },
+    {
+      className: 'w-[14%]',
+      header: 'Schedule',
+      render: (row) => row.schedule,
+    },
+    {
+      className: 'w-[12%]',
+      header: 'Status',
+      render: (row) => (
+        <StatusBadge tone={inspectionStatusTone(row.status)}>
+          {row.status}
+        </StatusBadge>
+      ),
+    },
+    {
+      className: 'w-[14%]',
+      header: 'Last Run',
+      render: (row) =>
+        row.last_run_at ? formatIntegrationDateTime(row.last_run_at) : '—',
+    },
+    {
+      className: 'w-[12%]',
+      header: 'Created At',
+      render: (row) => formatIntegrationDateTime(row.created_at),
+    },
+    {
+      className: 'w-[8%]',
+      header: 'Actions',
+      render: (row) => {
+        const isExecuting = executingId === row.id;
+        const isToggling = togglingId === row.id;
+        const isDeleting = deletingId === row.id;
+        const isDisabled = isExecuting || isToggling || isDeleting;
+
+        return (
+          <div className="flex items-center gap-1">
+            <button
+              aria-label={`Run ${row.name}`}
+              className="grid size-8 place-items-center rounded-md text-blue-600 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={isDisabled}
+              onClick={() => onExecute(row)}
+              title="Run inspection"
+              type="button"
+            >
+              <Play aria-hidden="true" size={14} />
+            </button>
+            <button
+              aria-label={`${row.status === 'ENABLED' ? 'Disable' : 'Enable'} ${row.name}`}
+              className="grid size-8 place-items-center rounded-md text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={isDisabled}
+              onClick={() => onToggleEnabled(row)}
+              title={row.status === 'ENABLED' ? 'Disable inspection' : 'Enable inspection'}
+              type="button"
+            >
+              {row.status === 'ENABLED' ? (
+                <Square aria-hidden="true" size={13} />
+              ) : (
+                <CheckCircle2 aria-hidden="true" size={15} />
+              )}
+            </button>
+            <button
+              aria-label={`Delete ${row.name}`}
+              className="grid size-8 place-items-center rounded-md text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={isDisabled}
+              onClick={() => onDelete(row)}
+              title="Delete inspection"
+              type="button"
+            >
+              <Trash2 aria-hidden="true" size={15} />
+            </button>
+          </div>
+        );
+      },
+    },
+  ];
+
+  return (
+    <DataTable
+      columns={columns}
+      containerClassName="rounded-none border-0"
+      getRowKey={(row) => String(row.id)}
+      rows={rows}
+    />
   );
 }
 
@@ -2061,19 +2108,10 @@ const entityColumns: DataColumn<Entity>[] = [
         <LinkButton
           ariaLabel={`Open ${row.name} topology`}
           className="size-8 border-0 bg-transparent p-0 text-blue-600 shadow-none hover:bg-slate-100 hover:text-blue-700"
-          href="/entity/topology"
+          href={`/entity/topology?entity_id=${encodeURIComponent(row.id)}`}
         >
           <Eye aria-hidden="true" size={15} />
         </LinkButton>
-        <ActionButton
-          aria-label={`More actions for ${row.name}`}
-          className="size-8 border-0 bg-transparent p-0 text-blue-600 shadow-none hover:bg-slate-100 hover:text-blue-700"
-          message={`${row.name} actions opened`}
-          size="sm"
-          variant="ghost"
-        >
-          <MoreVertical aria-hidden="true" size={15} />
-        </ActionButton>
       </div>
     ),
   },
@@ -2132,44 +2170,10 @@ function EntitySearchBar({
 
 function EntityListToolbar({ total }: { total: number }): ReactNode {
   return (
-    <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+    <div className="border-b border-slate-200 px-5 py-4">
       <div className="flex items-center gap-3 text-sm font-medium text-slate-700">
         <FileText aria-hidden="true" size={17} />
         <span>{total.toLocaleString()} entities found</span>
-      </div>
-      <div className="flex items-center gap-3">
-        <ActionButton message="Entity export started" size="sm" variant="ghost">
-          <Download aria-hidden="true" size={15} />
-          Export
-        </ActionButton>
-        <div className="flex overflow-hidden rounded-md border border-slate-200">
-          <ActionButton
-            aria-label="List view"
-            className="rounded-none border-0 border-r border-slate-200"
-            message="List view selected"
-            size="sm"
-            variant="ghost"
-          >
-            <List aria-hidden="true" size={15} />
-          </ActionButton>
-          <ActionButton
-            aria-label="Grid view"
-            className="rounded-none border-0"
-            message="Grid view selected"
-            size="sm"
-            variant="ghost"
-          >
-            <Grid2X2 aria-hidden="true" size={15} />
-          </ActionButton>
-        </div>
-        <ActionButton
-          message="Column selector opened"
-          size="sm"
-          variant="outline"
-        >
-          <Settings aria-hidden="true" size={15} />
-          Columns
-        </ActionButton>
       </div>
     </div>
   );
@@ -2199,15 +2203,7 @@ function EntityPagination({
         Showing {firstItem} to {lastItem} of {total} entities
       </span>
       <div className="flex items-center gap-3">
-        <ActionButton
-          className="h-8 gap-2 px-3 text-xs"
-          message={`${pageSize} entities per page`}
-          size="sm"
-          variant="outline"
-        >
-          {pageSize} / page
-          <ChevronDown aria-hidden="true" size={14} />
-        </ActionButton>
+        <span className="text-xs text-slate-500">{pageSize} / page</span>
         <ActionButton
           aria-label="Previous entity page"
           className="size-8 px-0"
@@ -3340,51 +3336,245 @@ export function IncidentIntegrationsPage(): ReactNode {
 }
 
 export function InspectionsPage(): ReactNode {
+  const [draftName, setDraftName] = useState('');
+  const [draftStatus, setDraftStatus] = useState('');
+  const [filters, setFilters] = useState({ name: '', status: '' });
+  const [page, setPage] = useState(1);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const pageSize = 20;
+
+  const inspectionsQuery = useQuery({
+    queryFn: () => listInspections({ page, page_size: pageSize }),
+    queryKey: inspectionQueryKeys.list({ page, page_size: pageSize }),
+  });
+  const statusOptionsQuery = useQuery({
+    queryFn: listInspectionStatuses,
+    queryKey: inspectionQueryKeys.statuses(),
+  });
+  const scheduleOptionsQuery = useQuery({
+    queryFn: listInspectionSchedules,
+    queryKey: inspectionQueryKeys.schedules(),
+  });
+
+  const invalidateInspections = async (): Promise<void> => {
+    await queryClient.invalidateQueries({ queryKey: inspectionQueryKeys.all });
+  };
+  const createMutation = useMutation({
+    mutationFn: createInspection,
+    onSuccess: async () => {
+      await invalidateInspections();
+      setActionError(null);
+      setActionMessage('Inspection created.');
+      setIsCreateDialogOpen(false);
+    },
+  });
+  const executeMutation = useMutation({
+    mutationFn: executeInspection,
+    onSuccess: async (result) => {
+      await invalidateInspections();
+      setActionError(null);
+      setActionMessage(`Inspection execution started (run #${result.run_id}).`);
+    },
+  });
+  const enableMutation = useMutation({
+    mutationFn: enableInspection,
+    onSuccess: invalidateInspections,
+  });
+  const disableMutation = useMutation({
+    mutationFn: disableInspection,
+    onSuccess: invalidateInspections,
+  });
+  const deleteMutation = useMutation({
+    mutationFn: deleteInspection,
+    onSuccess: async () => {
+      await invalidateInspections();
+      setActionError(null);
+      setActionMessage('Inspection deleted.');
+    },
+  });
+
+  const inspectionPage = inspectionsQuery.data;
+  const inspectionRows = useMemo(() => {
+    const normalizedName = filters.name.toLocaleLowerCase();
+    return (inspectionPage?.items ?? []).filter((inspection) => {
+      const matchesName =
+        !normalizedName ||
+        inspection.name.toLocaleLowerCase().includes(normalizedName);
+      const matchesStatus =
+        !filters.status || inspection.status === filters.status;
+      return matchesName && matchesStatus;
+    });
+  }, [filters.name, filters.status, inspectionPage?.items]);
+  const enabledCount = (inspectionPage?.items ?? []).filter(
+    (inspection) => inspection.status === 'ENABLED',
+  ).length;
+
+  const setMutationError = (error: unknown): void => {
+    setActionMessage(null);
+    setActionError(
+      error instanceof Error ? error.message : 'The inspection request failed.',
+    );
+  };
+  const applyFilters = (): void => {
+    setFilters({ name: draftName.trim(), status: draftStatus });
+    setPage(1);
+  };
+  const handleCreate = async (values: InspectionFormValues): Promise<void> => {
+    try {
+      const request: InspectionWriteRequest = {
+        description: values.description?.trim() || null,
+        enabled: values.enabled,
+        input_template: values.input_template,
+        name: values.name,
+        schedule: values.schedule,
+        scope: values.scope,
+      };
+      await createMutation.mutateAsync(request);
+    } catch (error) {
+      setMutationError(error);
+      throw error;
+    }
+  };
+  const handleExecute = (inspection: Inspection): void => {
+    void executeMutation.mutateAsync(inspection.id).catch(setMutationError);
+  };
+  const handleToggleEnabled = (inspection: Inspection): void => {
+    const mutation =
+      inspection.status === 'ENABLED' ? disableMutation : enableMutation;
+    void mutation.mutateAsync(inspection.id).catch(setMutationError);
+  };
+  const handleDelete = (inspection: Inspection): void => {
+    if (!window.confirm(`Delete inspection "${inspection.name}"?`)) return;
+    void deleteMutation.mutateAsync(inspection.id).catch(setMutationError);
+  };
+
   return (
     <AppShell activeItem="Inspections" activeSection="tasks">
       <PageHeader
         actions={
           <>
-            <ActionButton
-              message="Schedule inspection dialog opened"
-              variant="outline"
+            <button
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 text-xs font-semibold text-blue-700 shadow-sm transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={inspectionsQuery.isFetching}
+              onClick={() => {
+                void inspectionsQuery.refetch();
+              }}
+              type="button"
             >
-              <Calendar aria-hidden="true" size={15} />
-              Schedule Inspection
-            </ActionButton>
-            <ActionButton message="New inspection dialog opened">
+              <RefreshCw aria-hidden="true" size={15} />
+              Refresh
+            </button>
+            <button
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700"
+              onClick={() => {
+                setActionError(null);
+                setIsCreateDialogOpen(true);
+              }}
+              type="button"
+            >
               <Plus aria-hidden="true" size={15} />
               New Inspection
-            </ActionButton>
+            </button>
           </>
         }
         actionsClassName="pr-4"
-        description="Manage and monitor inspection tasks across your environments."
+        description="Manage scheduled inspection tasks with live service data."
         parentTitle="Tasks"
         title="Inspections"
       />
       <div className="min-h-0 flex-1 overflow-auto px-6 pb-6">
-        <InspectionStatsGrid />
+        <InspectionStatsGrid
+          enabled={enabledCount}
+          loaded={inspectionPage?.items.length ?? 0}
+          total={inspectionPage?.total ?? 0}
+        />
         <Toolbar>
           <div className="flex flex-wrap gap-4">
-            <FilterInput placeholder="Search inspections by name..." />
-            <LabeledFilterSelect label="Status" value="All" />
-            <LabeledFilterSelect label="Type" value="All" />
-            <LabeledFilterSelect label="Environment" value="All" />
-            <LabeledFilterSelect label="Created At" value="Last 7 days" />
+            <FilterInput
+              onChange={setDraftName}
+              placeholder="Search loaded inspections by name..."
+              value={draftName}
+            />
+            <LabeledFilterSelect
+              label="Status"
+              onChange={setDraftStatus}
+              options={statusOptionsQuery.data ?? []}
+              selectedValue={draftStatus}
+              value="All"
+            />
           </div>
-          <SearchButton />
+          <button
+            className="h-10 w-28 rounded-md bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={inspectionsQuery.isFetching}
+            onClick={applyFilters}
+            type="button"
+          >
+            Search
+          </button>
         </Toolbar>
+        {actionMessage ? (
+          <p className="mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            {actionMessage}
+          </p>
+        ) : null}
+        {actionError ? (
+          <p className="mb-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {actionError}
+          </p>
+        ) : null}
         <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
-          <DataTable
-            columns={inspectionColumns}
-            containerClassName="rounded-none border-0"
-            getRowKey={(row) => row.id}
-            rows={inspections}
+          {inspectionsQuery.isPending ? (
+            <InspectionTableState>Loading inspections...</InspectionTableState>
+          ) : null}
+          {inspectionsQuery.isError ? (
+            <InspectionTableState tone="danger">
+              {inspectionsQuery.error.message || 'Failed to load inspections.'}
+            </InspectionTableState>
+          ) : null}
+          {!inspectionsQuery.isPending &&
+          !inspectionsQuery.isError &&
+          inspectionRows.length === 0 ? (
+            <InspectionTableState>No inspections found.</InspectionTableState>
+          ) : null}
+          {!inspectionsQuery.isPending &&
+          !inspectionsQuery.isError &&
+          inspectionRows.length > 0 ? (
+            <InspectionTable
+              deletingId={deleteMutation.isPending ? deleteMutation.variables : null}
+              executingId={executeMutation.isPending ? executeMutation.variables : null}
+              onDelete={handleDelete}
+              onExecute={handleExecute}
+              onToggleEnabled={handleToggleEnabled}
+              rows={inspectionRows}
+              togglingId={
+                enableMutation.isPending
+                  ? enableMutation.variables
+                  : disableMutation.isPending
+                    ? disableMutation.variables
+                    : null
+              }
+            />
+          ) : null}
+          <InspectionPagination
+            count={inspectionRows.length}
+            onPageChange={setPage}
+            page={page}
+            pageSize={pageSize}
+            total={inspectionPage?.total ?? 0}
           />
-          <InspectionPagination />
         </section>
       </div>
+      <InspectionFormDialog
+        errorMessage={actionError}
+        isOpen={isCreateDialogOpen}
+        isSubmitting={createMutation.isPending}
+        onClose={() => setIsCreateDialogOpen(false)}
+        onSubmit={handleCreate}
+        scheduleOptions={scheduleOptionsQuery.data ?? []}
+      />
     </AppShell>
   );
 }
@@ -3489,116 +3679,119 @@ export function EntitySearchPage(): ReactNode {
 }
 
 export function EntityTopologyPage(): ReactNode {
-  const topologyNodes = [
-    {
-      className: 'left-[50%] top-[7%]',
-      icon: GitBranch,
-      label: 'user-frontend',
-      subtitle: 'Service',
-      tone: 'border-emerald-300 bg-emerald-50 text-emerald-700',
-    },
-    {
-      className: 'left-[50%] top-[20%]',
-      icon: GitBranch,
-      label: 'api-gateway',
-      subtitle: 'Service',
-      tone: 'border-emerald-300 bg-emerald-50 text-emerald-700',
-    },
-    {
-      className: 'left-[50%] top-[36%]',
-      icon: Box,
-      label: 'checkout-service',
-      subtitle: 'Pod',
-      tone: 'border-blue-500 bg-blue-50 text-blue-700 shadow-blue-100',
-    },
-    {
-      className: 'left-[25%] top-[35%]',
-      icon: GitBranch,
-      label: 'payment-service',
-      subtitle: 'Service',
-      tone: 'border-emerald-300 bg-emerald-50 text-emerald-700',
-    },
-    {
-      className: 'left-[25%] top-[51%]',
-      icon: GitBranch,
-      label: 'email-service',
-      subtitle: 'Service',
-      tone: 'border-emerald-300 bg-emerald-50 text-emerald-700',
-    },
-    {
-      className: 'left-[72%] top-[27%]',
-      icon: Database,
-      label: 'redis-cache',
-      subtitle: 'Redis',
-      tone: 'border-violet-300 bg-violet-50 text-violet-700',
-    },
-    {
-      className: 'left-[75%] top-[37%]',
-      icon: Database,
-      label: 'orders-db-primary',
-      subtitle: 'Database (MySQL)',
-      tone: 'border-orange-300 bg-orange-50 text-orange-600',
-    },
-    {
-      className: 'left-[75%] top-[55%]',
-      icon: Database,
-      label: 'orders-db-replica',
-      subtitle: 'Database (MySQL)',
-      tone: 'border-orange-300 bg-orange-50 text-orange-600',
-    },
-    {
-      className: 'left-[50%] top-[61%]',
-      icon: MessageSquare,
-      label: 'message-queue',
-      subtitle: 'Kafka Topic',
-      tone: 'border-violet-300 bg-violet-50 text-violet-700',
-    },
-    {
-      className: 'left-[36%] top-[81%]',
-      icon: GitBranch,
-      label: 'inventory-service',
-      subtitle: 'Consumer',
-      tone: 'border-emerald-300 bg-emerald-50 text-emerald-700',
-    },
-    {
-      className: 'left-[65%] top-[81%]',
-      icon: GitBranch,
-      label: 'notification-service',
-      subtitle: 'Consumer',
-      tone: 'border-emerald-300 bg-emerald-50 text-emerald-700',
-    },
-  ];
+  const hasAppliedUrlEntity = useRef(false);
+  const [draftQuery, setDraftQuery] = useState('');
+  const [draftType, setDraftType] = useState('');
+  const [appliedFilters, setAppliedFilters] = useState({ query: '', type: '' });
+  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [direction, setDirection] = useState<'both' | 'downstream' | 'upstream'>(
+    'both',
+  );
+  const [depth, setDepth] = useState(3);
 
-  const legendItems = [
-    ['bg-blue-600', 'Request'],
-    ['border-violet-500 border-dashed', 'Cache'],
-    ['bg-orange-500', 'Database'],
-    ['border-orange-500 border-dashed', 'Replication'],
-    ['border-violet-500 border-dashed', 'Message'],
-    ['border-emerald-300 bg-emerald-50', 'Service'],
-    ['border-orange-300 bg-orange-50', 'Database'],
-    ['border-violet-300 bg-violet-50', 'Queue'],
-    ['border-blue-300 bg-blue-50', 'External'],
-  ];
+  const entityTypesQuery = useQuery({
+    queryFn: listEntityTypes,
+    queryKey: entityQueryKeys.types(),
+  });
+  const candidateEntitiesQuery = useQuery({
+    queryFn: () =>
+      searchEntities({
+        page: 1,
+        page_size: 50,
+        query: appliedFilters.query,
+        type: appliedFilters.type,
+      }),
+    queryKey: entityQueryKeys.search({
+      page: 1,
+      page_size: 50,
+      query: appliedFilters.query,
+      type: appliedFilters.type,
+    }),
+  });
+  const topologyQuery = useQuery({
+    enabled: selectedEntityId !== null,
+    queryFn: () =>
+      getEntityTopology(selectedEntityId as string, { depth, direction }),
+    queryKey: entityQueryKeys.topology(selectedEntityId ?? '', {
+      depth,
+      direction,
+    }),
+  });
+
+  useEffect(() => {
+    const entityIdFromUrl = new URLSearchParams(window.location.search).get(
+      'entity_id',
+    );
+
+    if (!hasAppliedUrlEntity.current && entityIdFromUrl) {
+      setSelectedEntityId(entityIdFromUrl);
+      setSelectedNodeId(entityIdFromUrl);
+      hasAppliedUrlEntity.current = true;
+    }
+  }, []);
+
+  const topology: EntityTopology | undefined = topologyQuery.data;
+  const nodePositions = useMemo(() => {
+    const nodes = topology?.nodes ?? [];
+    const columns = Math.max(Math.ceil(Math.sqrt(nodes.length)), 1);
+    const rows = Math.max(Math.ceil(nodes.length / columns), 1);
+
+    return new Map(
+      nodes.map((node, index) => {
+        const column = index % columns;
+        const row = Math.floor(index / columns);
+        const x = columns === 1 ? 50 : 10 + (column * 80) / (columns - 1);
+        const y = rows === 1 ? 50 : 12 + (row * 76) / (rows - 1);
+        return [node.id, { x, y }];
+      }),
+    );
+  }, [topology?.nodes]);
+  const selectedNode =
+    topology?.nodes.find((node) => node.id === selectedNodeId) ??
+    topology?.nodes.find((node) => node.id === topology.root_entity_id) ??
+    null;
+  const selectedNodeRelationships = (topology?.edges ?? []).filter(
+    (edge) =>
+      edge.source_entity_id === selectedNode?.id ||
+      edge.target_entity_id === selectedNode?.id,
+  );
+
+  const applyFilters = (): void => {
+    setAppliedFilters({ query: draftQuery.trim(), type: draftType });
+    setSelectedEntityId(null);
+    setSelectedNodeId(null);
+  };
+  const selectRootEntity = (entity: Entity): void => {
+    setSelectedEntityId(entity.id);
+    setSelectedNodeId(entity.id);
+  };
 
   return (
     <AppShell activeItem="Topology" activeSection="entity">
       <PageHeader
-        description="Visualize relationships and dependencies between entities in your infrastructure."
+        description="Explore live dependency relationships returned by the Observability Data Catalog."
         parentTitle="Entity"
         title="Topology"
       />
       <div className="flex min-h-0 flex-1 flex-col overflow-auto px-6 pb-6">
         <section className="mb-3 rounded-md border border-slate-200 bg-white p-4">
-          <div className="flex items-center gap-4">
-            <LabeledFilterSelect label="Environment" value="All" />
-            <LabeledFilterSelect label="Entity Type" value="All" />
-            <label className="relative block min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-4">
+            <LabeledFilterSelect
+              label="Entity Type"
+              onChange={setDraftType}
+              options={entityTypesQuery.data ?? []}
+              selectedValue={draftType}
+              value="All"
+            />
+            <label className="relative min-w-0 flex-1">
               <span className="sr-only">Search topology entities</span>
               <input
-                className="h-12 w-full rounded-md border border-slate-200 bg-white px-4 pr-12 text-sm text-slate-800 outline-none transition placeholder:text-slate-500 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-                placeholder="Search entity by name, ID, IP, or tag..."
+                className="h-10 w-full rounded-md border border-slate-200 bg-white px-4 pr-12 text-sm text-slate-800 outline-none transition placeholder:text-slate-500 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                onChange={(event) => setDraftQuery(event.target.value)}
+                placeholder="Search entity by name, ID, namespace, or label..."
                 type="search"
+                value={draftQuery}
               />
               <Search
                 aria-hidden="true"
@@ -3606,349 +3799,251 @@ export function EntityTopologyPage(): ReactNode {
                 size={19}
               />
             </label>
-            <SearchButton />
-          </div>
-        </section>
-        <div className="grid min-h-[620px] grid-cols-[minmax(0,1fr)_480px] gap-3">
-          <section className="relative overflow-hidden rounded-md border border-slate-200 bg-white">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,#e2e8f0_1px,transparent_0)] [background-size:18px_18px]" />
-            <div className="absolute left-4 top-4 z-10 flex gap-2">
-              {['⚙', '⛶', '+', '−', '⤢'].map((control) => (
-                <ActionButton
-                  aria-label={`Topology control ${control}`}
-                  className="size-9 p-0"
-                  key={control}
-                  message={`Topology control ${control} selected`}
-                  size="sm"
-                  variant="ghost"
-                >
-                  {control}
-                </ActionButton>
-              ))}
-            </div>
-            <div className="absolute right-4 top-4 z-10">
-              <LabeledFilterSelect label="Layout" value="Auto" />
-            </div>
-            <svg
-              className="absolute inset-0 size-full"
-              role="presentation"
-              viewBox="0 0 100 100"
-              preserveAspectRatio="none"
+            <button
+              className="h-10 rounded-md bg-blue-600 px-5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={candidateEntitiesQuery.isFetching}
+              onClick={applyFilters}
+              type="button"
             >
-              <defs>
-                <marker
-                  id="arrow-blue"
-                  markerHeight="6"
-                  markerWidth="6"
-                  orient="auto"
-                  refX="5"
-                  refY="3"
-                >
-                  <path d="M0,0 L6,3 L0,6 Z" fill="#2563eb" />
-                </marker>
-                <marker
-                  id="arrow-purple"
-                  markerHeight="6"
-                  markerWidth="6"
-                  orient="auto"
-                  refX="5"
-                  refY="3"
-                >
-                  <path d="M0,0 L6,3 L0,6 Z" fill="#7c3aed" />
-                </marker>
-                <marker
-                  id="arrow-orange"
-                  markerHeight="6"
-                  markerWidth="6"
-                  orient="auto"
-                  refX="5"
-                  refY="3"
-                >
-                  <path d="M0,0 L6,3 L0,6 Z" fill="#f97316" />
-                </marker>
-              </defs>
-              <line
-                stroke="#16a34a"
-                strokeWidth="0.55"
-                x1="50"
-                x2="50"
-                y1="12.5"
-                y2="20"
-              />
-              <line
-                stroke="#2563eb"
-                strokeWidth="0.55"
-                x1="50"
-                x2="50"
-                y1="25.5"
-                y2="36"
-              />
-              <line
-                markerEnd="url(#arrow-blue)"
-                stroke="#2563eb"
-                strokeWidth="0.55"
-                x1="42.9"
-                x2="33.4"
-                y1="43"
-                y2="43"
-              />
-              <line
-                markerEnd="url(#arrow-blue)"
-                stroke="#2563eb"
-                strokeWidth="0.55"
-                x1="57.1"
-                x2="68.4"
-                y1="43"
-                y2="43"
-              />
-              <path
-                d="M56.4 39.3 L67.8 32"
-                markerEnd="url(#arrow-purple)"
-                stroke="#7c3aed"
-                strokeDasharray="1.6 1.2"
-                strokeWidth="0.55"
-                fill="none"
-              />
-              <path
-                d="M43.8 39.8 L32.2 50"
-                markerEnd="url(#arrow-purple)"
-                stroke="#7c3aed"
-                strokeDasharray="1.6 1.2"
-                strokeWidth="0.55"
-                fill="none"
-              />
-              <line
-                stroke="#2563eb"
-                strokeWidth="0.55"
-                x1="50"
-                x2="50"
-                y1="46"
-                y2="61"
-              />
-              <path
-                d="M46.2 66 L39.1 78.6"
-                markerEnd="url(#arrow-purple)"
-                stroke="#7c3aed"
-                strokeDasharray="1.6 1.2"
-                strokeWidth="0.55"
-                fill="none"
-              />
-              <path
-                d="M53.8 66 L62.1 78.8"
-                markerEnd="url(#arrow-purple)"
-                stroke="#7c3aed"
-                strokeDasharray="1.6 1.2"
-                strokeWidth="0.55"
-                fill="none"
-              />
-              <line
-                markerEnd="url(#arrow-orange)"
-                stroke="#f97316"
-                strokeDasharray="1.8 1.3"
-                strokeWidth="0.55"
-                x1="75"
-                x2="75"
-                y1="44.8"
-                y2="54"
-              />
-            </svg>
-            {topologyNodes.map((node) => {
-              const Icon = node.icon;
-
-              return (
-                <ActionButton
-                  className={cn(
-                    'absolute z-10 flex min-w-[154px] -translate-x-1/2 items-center gap-3 rounded-md border px-4 py-2 text-left text-sm shadow-sm',
-                    node.tone,
-                    node.className,
-                  )}
-                  key={node.label}
-                  message={`${node.label} selected`}
-                  variant="outline"
-                >
-                  <Icon aria-hidden="true" size={22} />
-                  <span>
-                    <span className="block font-semibold text-slate-950">
-                      {node.label}
-                    </span>
-                    <span className="block text-xs font-medium text-slate-600">
-                      {node.subtitle}
-                    </span>
-                  </span>
-                </ActionButton>
-              );
-            })}
-            <div className="absolute bottom-6 left-4 z-10 w-32 rounded-md border border-slate-200 bg-white p-3 text-xs shadow-sm">
-              <div className="space-y-2">
-                {legendItems.map(([tone, label]) => (
-                  <div className="flex items-center gap-2" key={label}>
-                    <span
-                      className={cn(
-                        'h-0.5 w-5 rounded border',
-                        tone,
-                        tone.startsWith('bg') && 'border-0',
-                      )}
-                    />
-                    <span>{label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="absolute bottom-6 right-6 z-10 h-28 w-40 rounded-md border border-slate-200 bg-white p-3 shadow-sm">
-              <div className="relative size-full rounded border border-blue-300 bg-blue-50">
-                <span className="absolute left-5 top-6 h-3 w-8 rounded border border-emerald-300 bg-emerald-100" />
-                <span className="absolute left-14 top-12 h-3 w-8 rounded border border-violet-300 bg-violet-100" />
-                <span className="absolute right-5 top-8 h-3 w-8 rounded border border-violet-300 bg-violet-100" />
-                <span className="absolute bottom-3 left-8 h-3 w-8 rounded border border-emerald-300 bg-emerald-100" />
-                <span className="absolute bottom-6 right-4 h-3 w-8 rounded border border-orange-300 bg-orange-100" />
-              </div>
-            </div>
-          </section>
-          <aside className="overflow-hidden rounded-md border border-slate-200 bg-white">
-            <div className="flex items-start justify-between border-b border-slate-200 p-5">
-              <div className="flex items-center gap-3">
-                <span className="grid size-9 place-items-center rounded-full bg-blue-600 text-white">
-                  <Box aria-hidden="true" size={20} />
-                </span>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-lg font-semibold text-slate-950">
-                      checkout-service
-                    </h2>
-                    <StatusBadge tone="emerald">Pod</StatusBadge>
-                  </div>
-                </div>
-              </div>
+              Search
+            </button>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {candidateEntitiesQuery.isPending ? (
+              <span className="text-sm text-slate-500">Loading entities...</span>
+            ) : null}
+            {candidateEntitiesQuery.isError ? (
+              <span className="text-sm text-red-600">
+                {candidateEntitiesQuery.error.message || 'Failed to load entities.'}
+              </span>
+            ) : null}
+            {!candidateEntitiesQuery.isPending &&
+            !candidateEntitiesQuery.isError &&
+            (candidateEntitiesQuery.data?.items.length ?? 0) === 0 ? (
+              <span className="text-sm text-slate-500">No matching entities.</span>
+            ) : null}
+            {(candidateEntitiesQuery.data?.items ?? []).map((entity) => (
               <button
-                className="text-xl leading-none text-slate-500 hover:text-slate-900"
+                className={cn(
+                  'rounded-md border px-3 py-2 text-left text-xs transition',
+                  selectedEntityId === entity.id
+                    ? 'border-blue-300 bg-blue-50 text-blue-700'
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50',
+                )}
+                key={entity.id}
+                onClick={() => selectRootEntity(entity)}
                 type="button"
               >
-                ×
+                <span className="block font-semibold">{entity.name}</span>
+                <span className="mt-0.5 block text-slate-500">
+                  {entity.type} · {entity.namespace || '—'}
+                </span>
               </button>
+            ))}
+          </div>
+        </section>
+        <div className="grid min-h-[620px] grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <section className="relative min-h-[620px] overflow-auto rounded-md border border-slate-200 bg-white">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,#e2e8f0_1px,transparent_0)] [background-size:18px_18px]" />
+            <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur">
+              <div className="flex items-center gap-2 text-sm text-slate-700">
+                <GitBranch aria-hidden="true" className="text-blue-600" size={17} />
+                <span>{topology?.nodes.length ?? 0} nodes</span>
+                <span className="text-slate-300">•</span>
+                <span>{topology?.edges.length ?? 0} relationships</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <LabeledFilterSelect
+                  className="h-8 min-w-[150px] text-xs"
+                  label="Direction"
+                  onChange={(value) =>
+                    setDirection(value as 'both' | 'downstream' | 'upstream')
+                  }
+                  options={[
+                    { label: 'Both directions', value: 'both' },
+                    { label: 'Upstream', value: 'upstream' },
+                    { label: 'Downstream', value: 'downstream' },
+                  ]}
+                  selectedValue={direction}
+                  value="Direction"
+                />
+                <LabeledFilterSelect
+                  className="h-8 min-w-[112px] text-xs"
+                  label="Depth"
+                  onChange={(value) => setDepth(Number(value))}
+                  options={[
+                    { label: '1 hop', value: '1' },
+                    { label: '2 hops', value: '2' },
+                    { label: '3 hops', value: '3' },
+                  ]}
+                  selectedValue={String(depth)}
+                  value="Depth"
+                />
+              </div>
             </div>
-            <div className="flex border-b border-slate-200 px-5">
-              {['Overview', 'Relationships 7', 'Metrics', 'Alerts 2'].map(
-                (tab, index) => (
-                  <button
-                    className={cn(
-                      'h-11 px-3 text-sm font-medium',
-                      index === 0
-                        ? 'border-b-2 border-blue-600 text-blue-600'
-                        : 'text-slate-600 hover:text-blue-600',
-                    )}
-                    key={tab}
-                    type="button"
-                  >
-                    {tab}
-                  </button>
-                ),
-              )}
-            </div>
-            <div className="space-y-5 p-5 text-sm">
-              <dl className="grid grid-cols-[110px_1fr] gap-x-4 gap-y-4">
-                <dt className="text-slate-500">Name</dt>
-                <dd className="font-medium">checkout-service</dd>
-                <dt className="text-slate-500">ID</dt>
-                <dd>pod-5f7d6c8b7-2k9mz</dd>
-                <dt className="text-slate-500">Namespace</dt>
-                <dd>default</dd>
-                <dt className="text-slate-500">Environment</dt>
-                <dd>
-                  <InspectionTag className="border-emerald-200 bg-emerald-50 text-emerald-700">
-                    Production
-                  </InspectionTag>
-                </dd>
-                <dt className="text-slate-500">Labels</dt>
-                <dd className="flex flex-wrap gap-2">
-                  {[
-                    'app: checkout',
-                    'version: v2.1.0',
-                    'tier: backend',
-                    '+3',
-                  ].map((label) => (
-                    <span
-                      className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-700"
-                      key={label}
+            {!selectedEntityId ? (
+              <div className="relative z-10 flex min-h-[560px] items-center justify-center px-6 text-center text-sm text-slate-500">
+                Choose a real entity above to load its topology.
+              </div>
+            ) : null}
+            {topologyQuery.isPending ? (
+              <div className="relative z-10 flex min-h-[560px] items-center justify-center text-sm text-slate-500">
+                Loading topology from the catalog...
+              </div>
+            ) : null}
+            {topologyQuery.isError ? (
+              <div className="relative z-10 flex min-h-[560px] items-center justify-center px-6 text-center text-sm text-red-600">
+                {topologyQuery.error.message || 'Failed to load topology.'}
+              </div>
+            ) : null}
+            {topology && !topologyQuery.isPending && !topologyQuery.isError ? (
+              <div className="relative z-10 min-h-[560px] min-w-[760px]">
+                <svg
+                  aria-hidden="true"
+                  className="absolute inset-0 size-full overflow-visible"
+                  preserveAspectRatio="none"
+                  viewBox="0 0 100 100"
+                >
+                  <defs>
+                    <marker
+                      id="topology-arrow"
+                      markerHeight="4"
+                      markerWidth="4"
+                      orient="auto"
+                      refX="3.5"
+                      refY="2"
                     >
-                      {label}
-                    </span>
-                  ))}
-                </dd>
-                <dt className="text-slate-500">Created At</dt>
-                <dd>2024-05-10 14:22:18</dd>
-                <dt className="text-slate-500">Last Observed</dt>
-                <dd className="flex items-center gap-2">
-                  <Clock aria-hidden="true" size={15} />
-                  2024-05-20 10:30:45
-                </dd>
-              </dl>
-              <section className="border-t border-slate-200 pt-5">
-                <h3 className="font-semibold text-slate-950">Description</h3>
-                <p className="mt-3 leading-6 text-slate-700">
-                  Checkout service handles order validation, pricing, and
-                  payment processing.
-                </p>
-              </section>
-              <section className="border-t border-slate-200 pt-5">
-                <div className="flex items-center justify-between">
+                      <path d="M0,0 L4,2 L0,4 z" fill="#94a3b8" />
+                    </marker>
+                  </defs>
+                  {topology.edges.map((edge) => {
+                    const source = nodePositions.get(edge.source_entity_id);
+                    const target = nodePositions.get(edge.target_entity_id);
+                    if (!source || !target) return null;
+                    return (
+                      <line
+                        key={edge.id}
+                        markerEnd="url(#topology-arrow)"
+                        stroke="#94a3b8"
+                        strokeWidth="0.35"
+                        x1={source.x}
+                        x2={target.x}
+                        y1={source.y}
+                        y2={target.y}
+                      />
+                    );
+                  })}
+                </svg>
+                {topology.nodes.map((node) => {
+                  const position = nodePositions.get(node.id);
+                  if (!position) return null;
+                  const isRoot = node.id === topology.root_entity_id;
+                  const isSelected = node.id === selectedNode?.id;
+                  return (
+                    <button
+                      className={cn(
+                        'absolute z-10 w-40 -translate-x-1/2 -translate-y-1/2 rounded-md border bg-white px-3 py-2 text-left shadow-sm transition hover:border-blue-300 hover:shadow-md',
+                        isRoot && 'border-blue-500 ring-2 ring-blue-100',
+                        isSelected && !isRoot && 'border-violet-400 ring-2 ring-violet-100',
+                      )}
+                      key={node.id}
+                      onClick={() => setSelectedNodeId(node.id)}
+                      style={{ left: `${position.x}%`, top: `${position.y}%` }}
+                      type="button"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Box aria-hidden="true" className="shrink-0 text-blue-600" size={16} />
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-semibold text-slate-950">
+                            {node.name}
+                          </span>
+                          <span className="block truncate text-xs text-slate-500">
+                            {node.type}
+                          </span>
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+          </section>
+          <aside className="overflow-hidden rounded-md border border-slate-200 bg-white">
+            {!selectedNode ? (
+              <div className="flex min-h-full min-h-[240px] items-center justify-center px-6 text-center text-sm text-slate-500">
+                Select a topology node to view its live entity details.
+              </div>
+            ) : (
+              <div className="space-y-5 p-5 text-sm">
+                <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-5">
+                  <div className="min-w-0">
+                    <p className="truncate text-lg font-semibold text-slate-950">
+                      {selectedNode.name}
+                    </p>
+                    <p className="mt-1 break-all text-xs text-slate-500">
+                      {selectedNode.id}
+                    </p>
+                  </div>
+                  <StatusBadge tone="blue">{selectedNode.type}</StatusBadge>
+                </div>
+                <dl className="grid grid-cols-[100px_1fr] gap-x-3 gap-y-4">
+                  <dt className="text-slate-500">Namespace</dt>
+                  <dd className="break-words text-slate-800">
+                    {selectedNode.namespace || '—'}
+                  </dd>
+                  <dt className="text-slate-500">Status</dt>
+                  <dd className="text-slate-800">{selectedNode.status}</dd>
+                  <dt className="text-slate-500">Last Observed</dt>
+                  <dd className="text-slate-800">
+                    {selectedNode.updated_at
+                      ? formatIntegrationDateTime(selectedNode.updated_at)
+                      : '—'}
+                  </dd>
+                </dl>
+                <section className="border-t border-slate-200 pt-5">
                   <h3 className="font-semibold text-slate-950">
-                    Related Alerts
+                    Relationships ({selectedNodeRelationships.length})
                   </h3>
-                  <button className="text-sm text-blue-600" type="button">
-                    View all
-                  </button>
-                </div>
-                <div className="mt-4 space-y-4">
-                  {[
-                    ['bg-red-500', 'High Error Rate', 'Critical', '2m ago'],
-                    ['bg-amber-500', 'High Latency', 'Warning', '15m ago'],
-                  ].map(([dot, title, severity, time]) => (
-                    <div className="flex items-start gap-3" key={title}>
-                      <span className={cn('mt-1.5 size-2 rounded-full', dot)} />
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-slate-950">{title}</p>
-                        <p className="mt-1 text-xs text-slate-600">
-                          checkout-service {title.toLowerCase()} is high
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <StatusBadge
-                          tone={severity === 'Critical' ? 'red' : 'amber'}
+                  {selectedNodeRelationships.length === 0 ? (
+                    <p className="mt-3 text-sm text-slate-500">
+                      No relationships returned for this entity.
+                    </p>
+                  ) : (
+                    <ul className="mt-3 space-y-2">
+                      {selectedNodeRelationships.map((edge) => (
+                        <li
+                          className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700"
+                          key={edge.id}
                         >
-                          {severity}
-                        </StatusBadge>
-                        <p className="mt-1 text-xs text-slate-500">{time}</p>
-                      </div>
+                          <span className="font-medium">{edge.type}</span>
+                          <span className="mx-1 text-slate-400">·</span>
+                          {edge.source_entity_id === selectedNode.id
+                            ? `to ${edge.target_entity_id}`
+                            : `from ${edge.source_entity_id}`}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+                <section className="border-t border-slate-200 pt-5">
+                  <h3 className="font-semibold text-slate-950">Labels</h3>
+                  {Object.keys(selectedNode.labels).length === 0 ? (
+                    <p className="mt-3 text-sm text-slate-500">No labels returned.</p>
+                  ) : (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {Object.entries(selectedNode.labels).map(([key, value]) => (
+                        <span
+                          className="max-w-full break-all rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-700"
+                          key={key}
+                        >
+                          {key}: {value}
+                        </span>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </section>
-              <section className="border-t border-slate-200 pt-5">
-                <h3 className="font-semibold text-slate-950">Quick Actions</h3>
-                <div className="mt-3 grid grid-cols-3 gap-2">
-                  <ActionButton
-                    message="Metrics panel opened"
-                    size="sm"
-                    variant="outline"
-                  >
-                    <Activity aria-hidden="true" size={14} />
-                    Metrics
-                  </ActionButton>
-                  <ActionButton
-                    message="Logs panel opened"
-                    size="sm"
-                    variant="outline"
-                  >
-                    <FileSearch aria-hidden="true" size={14} />
-                    Logs
-                  </ActionButton>
-                  <LinkButton className="h-8" href="/" tone="outline">
-                    <Search aria-hidden="true" size={14} />
-                    Query
-                  </LinkButton>
-                </div>
-              </section>
-            </div>
+                  )}
+                </section>
+              </div>
+            )}
           </aside>
         </div>
       </div>
@@ -6517,112 +6612,226 @@ const observationTabs = [
   { icon: Box, label: 'Topology', value: 'api-gateway → user-service' },
 ];
 
+function getObservationEventContent(event: AESPEvent): string {
+  const content = event.data.content;
+
+  if (typeof content === 'string' && content.trim()) {
+    return content;
+  }
+
+  const summary = event.data.summary;
+
+  if (typeof summary === 'string' && summary.trim()) {
+    return summary;
+  }
+
+  return JSON.stringify(event.data);
+}
+
+function ObservationMessage({ message }: { message: Message }): ReactNode {
+  const isUser = message.role.toUpperCase() === 'USER';
+
+  return (
+    <article className="flex gap-3">
+      <span
+        className={cn(
+          'grid size-7 shrink-0 place-items-center rounded-full text-xs font-semibold',
+          isUser ? 'bg-blue-600 text-white' : 'bg-emerald-500 text-white',
+        )}
+      >
+        {isUser ? 'U' : 'A'}
+      </span>
+      <div className="min-w-0 flex-1 rounded-md border border-slate-200 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="font-semibold text-slate-950">
+            {isUser ? 'User request' : 'Agent observation'}
+          </h3>
+          <span className="shrink-0 text-xs text-slate-500">
+            {formatIntegrationDateTime(message.created_at)}
+          </span>
+        </div>
+        <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">
+          {message.content}
+        </p>
+      </div>
+    </article>
+  );
+}
+
 export function ChatObservationsPage(): ReactNode {
+  const [selectedConversationId, setSelectedConversationId] = useState<
+    number | null
+  >(null);
+  const conversationsQuery = useQuery({
+    queryFn: () => listConversations({ page: 1, page_size: 100 }),
+    queryKey: conversationQueryKeys.list({ page: 1, page_size: 100 }),
+  });
+
+  useEffect(() => {
+    if (
+      selectedConversationId === null &&
+      conversationsQuery.data?.items.length
+    ) {
+      setSelectedConversationId(conversationsQuery.data.items[0].id);
+    }
+  }, [conversationsQuery.data?.items, selectedConversationId]);
+
+  const messagesQuery = useQuery({
+    enabled: selectedConversationId !== null,
+    queryFn: () => listMessages(selectedConversationId as number, { page: 1, page_size: 100 }),
+    queryKey: messageQueryKeys.list(selectedConversationId ?? 0, {
+      page: 1,
+      page_size: 100,
+    }),
+  });
+  const selectedConversation =
+    conversationsQuery.data?.items.find(
+      (conversation) => conversation.id === selectedConversationId,
+    ) ?? null;
+  const messages = messagesQuery.data?.items ?? [];
+  const evidenceEvents = messages.flatMap(
+    (message) => message.metadata?.events ?? [],
+  );
+
   return (
     <AppShell activeItem="Observations" activeSection="chat">
       <PageHeader
         actions={
-          <>
-            <ActionButton message="Evidence export started" variant="outline">
-              Export Evidence
-            </ActionButton>
-            <LinkButton href="/" tone="default">
-              <Send aria-hidden="true" size={15} />
-              Ask Follow-up
-            </LinkButton>
-          </>
+          <LinkButton href="/" tone="default">
+            <Send aria-hidden="true" size={15} />
+            Ask Follow-up
+          </LinkButton>
         }
-        description="Evidence panel linked to the active investigation step."
+        description="Review messages and streamed evidence from a real investigation conversation."
         parentTitle="Chat"
         title="Observations"
       />
-      <div className="grid min-h-0 flex-1 grid-cols-[1fr_390px] gap-4 overflow-auto px-6 pb-6">
-        <section className="rounded-md border border-slate-200 bg-white">
-          <div className="flex h-12 items-center justify-between border-b border-slate-200 px-4">
-            <h2 className="text-sm font-semibold">Investigation Timeline</h2>
-            <StatusBadge tone="blue">Step 4 Running</StatusBadge>
-          </div>
-          <div className="space-y-4 p-5">
-            {[
-              '建立调查计划',
-              '查询服务指标',
-              '分析错误日志',
-              '验证依赖链路',
-              '生成 RCA',
-            ].map((step, index) => (
-              <article className="flex gap-3" key={step}>
-                <div
-                  className={cn(
-                    'grid size-7 shrink-0 place-items-center rounded-full text-xs font-semibold',
-                    index < 3 && 'bg-emerald-500 text-white',
-                    index === 3 && 'bg-blue-600 text-white',
-                    index > 3 && 'bg-slate-100 text-slate-500',
-                  )}
-                >
-                  {index < 3 ? '✓' : index + 1}
-                </div>
-                <div className="min-w-0 flex-1 rounded-md border border-slate-200 p-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-slate-950">{step}</h3>
-                    <span className="text-xs text-slate-500">
-                      10:{22 + index * 2}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
-                    {index === 3
-                      ? '正在关联 Metrics、Logs 和 Trace 证据，验证 user-service 响应超时是否为主要根因。'
-                      : '已完成证据查询，并将结果绑定到当前调查链路中。'}
-                  </p>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-        <aside className="rounded-md border border-slate-200 bg-white">
-          <div className="flex h-12 items-center justify-between border-b border-slate-200 px-4">
-            <h2 className="text-sm font-semibold">Observation Evidence</h2>
-            <ActionButton message="Observation evidence refreshed" size="sm">
+      <div className="min-h-0 flex-1 overflow-auto px-6 pb-6">
+        <section className="mb-4 rounded-md border border-slate-200 bg-white p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <label className="min-w-[280px] flex-1">
+              <span className="sr-only">Conversation</span>
+              <select
+                className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                disabled={conversationsQuery.isPending || conversationsQuery.isError}
+                onChange={(event) => setSelectedConversationId(Number(event.target.value))}
+                value={selectedConversationId ?? ''}
+              >
+                <option value="">Select a conversation</option>
+                {(conversationsQuery.data?.items ?? []).map(
+                  (conversation: Conversation) => (
+                    <option key={conversation.id} value={conversation.id}>
+                      {conversation.title || `Conversation #${conversation.id}`}
+                    </option>
+                  ),
+                )}
+              </select>
+            </label>
+            <button
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-4 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={messagesQuery.isFetching || selectedConversationId === null}
+              onClick={() => {
+                void messagesQuery.refetch();
+              }}
+              type="button"
+            >
+              <RefreshCw aria-hidden="true" size={15} />
               Refresh
-            </ActionButton>
+            </button>
           </div>
-          <div className="space-y-4 p-4">
-            {observationTabs.map((tab) => {
-              const Icon = tab.icon;
-
-              return (
-                <article
-                  className="rounded-md border border-slate-200 p-4"
-                  key={tab.label}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="grid size-8 place-items-center rounded-md bg-blue-50 text-blue-700">
-                      <Icon aria-hidden="true" size={16} />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-semibold">{tab.label}</h3>
-                      <p className="text-xs text-slate-500">{tab.value}</p>
-                    </div>
-                  </div>
-                  <div className="mt-4 h-24 rounded bg-slate-50 p-3 text-xs leading-5 text-slate-600">
-                    {tab.label === 'Metrics'
-                      ? 'Error rate increased from 2.1% to 15.4%; p95 latency crossed 1.8s.'
-                      : 'Evidence is linked to the active investigation step and can be verified before RCA confirmation.'}
-                  </div>
-                </article>
-              );
-            })}
-            <section className="rounded-md border border-emerald-200 bg-emerald-50 p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold text-emerald-800">
-                <ShieldCheck aria-hidden="true" size={16} />
-                Evidence Chain Verified
+          {conversationsQuery.isError ? (
+            <p className="mt-3 text-sm text-red-600">
+              {conversationsQuery.error.message || 'Failed to load conversations.'}
+            </p>
+          ) : null}
+        </section>
+        <div className="grid min-h-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_390px]">
+          <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
+            <div className="flex min-h-12 items-center justify-between gap-3 border-b border-slate-200 px-4">
+              <div>
+                <h2 className="text-sm font-semibold">Investigation Timeline</h2>
+                {selectedConversation ? (
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {selectedConversation.title || `Conversation #${selectedConversation.id}`}
+                  </p>
+                ) : null}
               </div>
-              <p className="mt-2 text-xs leading-5 text-emerald-700">
-                Metrics, logs, trace spans, and entity dependencies point to
-                user-service timeout saturation.
-              </p>
-            </section>
-          </div>
-        </aside>
+              {selectedConversation ? (
+                <StatusBadge tone="blue">{selectedConversation.status}</StatusBadge>
+              ) : null}
+            </div>
+            {selectedConversationId === null ? (
+              <div className="flex min-h-[360px] items-center justify-center px-6 text-center text-sm text-slate-500">
+                Select a conversation to load its investigation timeline.
+              </div>
+            ) : null}
+            {messagesQuery.isPending ? (
+              <div className="flex min-h-[360px] items-center justify-center text-sm text-slate-500">
+                Loading conversation messages...
+              </div>
+            ) : null}
+            {messagesQuery.isError ? (
+              <div className="flex min-h-[360px] items-center justify-center px-6 text-center text-sm text-red-600">
+                {messagesQuery.error.message || 'Failed to load messages.'}
+              </div>
+            ) : null}
+            {!messagesQuery.isPending &&
+            !messagesQuery.isError &&
+            selectedConversationId !== null &&
+            messages.length === 0 ? (
+              <div className="flex min-h-[360px] items-center justify-center px-6 text-center text-sm text-slate-500">
+                This conversation has no messages yet.
+              </div>
+            ) : null}
+            {!messagesQuery.isPending &&
+            !messagesQuery.isError &&
+            messages.length > 0 ? (
+              <div className="space-y-4 p-5">
+                {messages.map((message) => (
+                  <ObservationMessage key={message.id} message={message} />
+                ))}
+              </div>
+            ) : null}
+          </section>
+          <aside className="overflow-hidden rounded-md border border-slate-200 bg-white">
+            <div className="flex h-12 items-center justify-between border-b border-slate-200 px-4">
+              <h2 className="text-sm font-semibold">Observation Evidence</h2>
+              <span className="text-xs text-slate-500">
+                {evidenceEvents.length} events
+              </span>
+            </div>
+            {selectedConversationId === null ? (
+              <div className="flex min-h-[240px] items-center justify-center px-6 text-center text-sm text-slate-500">
+                Evidence will appear after you select a conversation.
+              </div>
+            ) : null}
+            {selectedConversationId !== null && evidenceEvents.length === 0 ? (
+              <div className="flex min-h-[240px] items-center justify-center px-6 text-center text-sm text-slate-500">
+                No AESP evidence events were returned for this conversation.
+              </div>
+            ) : null}
+            {evidenceEvents.length > 0 ? (
+              <div className="space-y-3 p-4">
+                {evidenceEvents.map((event) => (
+                  <article
+                    className="rounded-md border border-slate-200 p-3"
+                    key={`${event.run_id}:${event.sequence}:${event.id}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <StatusBadge tone="violet">{event.type}</StatusBadge>
+                      <span className="text-xs text-slate-500">
+                        {formatIntegrationDateTime(event.timestamp)}
+                      </span>
+                    </div>
+                    <p className="mt-3 max-h-44 overflow-auto whitespace-pre-wrap break-words text-xs leading-5 text-slate-700">
+                      {getObservationEventContent(event)}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            ) : null}
+          </aside>
+        </div>
       </div>
     </AppShell>
   );
