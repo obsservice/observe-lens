@@ -40,3 +40,18 @@ ConversationPage:
         items:
           type: array
           items: { $ref: '#/Conversation' }
+
+ConversationCommand:
+  type: object
+  required: [name, description, prompt]
+  properties:
+    name:
+      type: string
+      pattern: '^/[a-z0-9_-]+$'
+      example: /get_info
+    description:
+      type: string
+      example: Investigate alerts, anomalies, or performance issues.
+    prompt:
+      type: string
+      example: Investigate the following issue and provide root cause analysis and remediation steps.

@@ -11,12 +11,13 @@ from observelens_service.common.dependencies import get_request_context, get_ses
 from observelens_service.config.settings import get_settings
 from observelens_service.database.session import session_scope
 from observelens_service.modules.conversations.schemas import (
+    ConversationCommandResponse,
     ConversationCreateRequest,
     ConversationPage,
     ConversationResponse,
     ConversationUpdateRequest,
-    MessagePage,
     MessageCreateRequest,
+    MessagePage,
 )
 from observelens_service.modules.conversations.service import ConversationService
 
@@ -35,6 +36,12 @@ async def get_service(
 
 ServiceDependency = Annotated[ConversationService, Depends(get_service)]
 ContextDependency = Annotated[RequestContext, Depends(get_request_context)]
+
+
+@router.get("/cmds", response_model=list[ConversationCommandResponse])
+async def list_common_commands(context: ContextDependency) -> list[ConversationCommandResponse]:
+    _ = context
+    return ConversationService.list_common_commands()
 
 
 @router.get("", response_model=ConversationPage)

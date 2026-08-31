@@ -31,9 +31,22 @@ export interface ListConversationsParams {
 
 export const conversationQueryKeys = {
   all: ['conversations'] as const,
+  commands: () => [...conversationQueryKeys.all, 'commands'] as const,
   list: (params: ListConversationsParams = {}) =>
     [...conversationQueryKeys.all, 'list', params] as const,
 };
+
+export interface ConversationCommand {
+  description: string;
+  name: string;
+  prompt: string;
+}
+
+export async function listConversationCommands(): Promise<
+  ConversationCommand[]
+> {
+  return await apiRequest<ConversationCommand[]>('/conversations/cmds');
+}
 
 export interface Message {
   id: number;

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import {
   conversationQueryKeys,
   createConversation,
+  listConversationCommands,
   listConversations,
   listMessages,
   messageQueryKeys,
@@ -16,10 +17,12 @@ import {
   type Message,
 } from '@/lib/api/conversations';
 import { ApiError } from '@/lib/api/client';
+import { entityQueryKeys, searchEntities, type Entity } from '@/lib/api/entities';
 import { cn } from '@/lib/utils';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Archive,
+  AtSign,
   Check,
   Clock,
   ChevronDown,
@@ -30,9 +33,9 @@ import {
   Loader2,
   MessageSquarePlus,
   MoreHorizontal,
-  Paperclip,
   Search,
   Send,
+  Slash,
   Share2,
   RotateCcw,
 } from 'lucide-react';
@@ -83,6 +86,32 @@ function formatMessageTime(value: string): string {
 
 function isUserMessage(role: string): boolean {
   return role.toUpperCase() === 'USER';
+}
+
+function getCommandQuery(content: string): string | null {
+  const match = content.match(/^\s*\/([^\s]*)$/);
+
+  return match?.[1] ?? null;
+}
+
+function getEntityReference(content: string): { query: string; start: number } | null {
+  const match = content.match(/(^|\s)@([^\s@]*)$/);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    query: match[2],
+    start: content.length - match[2].length - 1,
+  };
+}
+
+function formatEntityReference(entity: Entity): string {
+  const location =
+    entity.namespace === '-' ? entity.type : `${entity.type}/${entity.namespace}`;
+
+  return `@${entity.name} [${location}; entity_id=${entity.id}]`;
 }
 
 function ChatMessageBubble({ message }: { message: Message }): ReactNode {
@@ -625,8 +654,10 @@ function ChatMessageList({
       return messages;
     }
 
-    const latestAssistantIndex = messages.findLastIndex(
-      (message) => !isUserMessage(message.role),
+    const latestAssistantIndex = messages.reduce(
+      (latestIndex, message, index) =>
+        isUserMessage(message.role) ? latestIndex : index,
+      -1,
     );
 
     if (latestAssistantIndex === -1) {
@@ -705,6 +736,60 @@ function ChatMessageInput({
   const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const commandQuery = getCommandQuery(content);
+  const entityReference = getEntityReference(content);
+  const commandsQuery = useQuery({
+    enabled: commandQuery !== null,
+    queryFn: listConversationCommands,
+    queryKey: conversationQueryKeys.commands(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const entitiesQuery = useQuery({
+    enabled: entityReference !== null,
+    queryFn: () =>
+      searchEntities({
+        page: 1,
+        page_size: 8,
+        query: entityReference?.query,
+      }),
+    queryKey: entityQueryKeys.search({
+      page: 1,
+      page_size: 8,
+      query: entityReference?.query,
+    }),
+    staleTime: 30 * 1000,
+  });
+  const matchingCommands = useMemo(() => {
+    const query = commandQuery?.toLowerCase() ?? '';
+
+    return (commandsQuery.data ?? []).filter((command) =>
+      command.name.slice(1).toLowerCase().startsWith(query),
+    );
+  }, [commandQuery, commandsQuery.data]);
+
+  const insertContent = (start: number, value: string) => {
+    const nextContent = `${content.slice(0, start)}${value} `;
+    setContent(nextContent);
+
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(nextContent.length, nextContent.length);
+    });
+  };
+
+  const handleCommandSelect = (command: { description: string; name: string }) => {
+    const commandStart = content.search(/\S/);
+    insertContent(
+      commandStart === -1 ? 0 : commandStart,
+      `${command.name}(${command.description})`,
+    );
+  };
+
+  const handleEntitySelect = (entity: Entity) => {
+    if (entityReference) {
+      insertContent(entityReference.start, formatEntityReference(entity));
+    }
+  };
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -758,10 +843,67 @@ function ChatMessageInput({
 
   return (
     <div className="absolute bottom-4 left-0 right-0 px-6">
-      <form
-        className="mx-auto w-full max-w-[1080px] rounded-lg border border-blue-500 bg-white p-3 shadow-lg shadow-slate-200/60"
-        onSubmit={handleSubmit}
-      >
+      <div className="relative mx-auto w-full max-w-[1080px]">
+        {commandQuery !== null ? (
+          <div className="absolute bottom-full mb-2 w-full overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg shadow-slate-200/70">
+            {commandsQuery.isLoading ? (
+              <p className="px-3 py-2 text-xs text-slate-500">加载常用命令中…</p>
+            ) : matchingCommands.length > 0 ? (
+              matchingCommands.map((command) => (
+                <button
+                  className="flex w-full items-start gap-3 px-3 py-2.5 text-left hover:bg-slate-50"
+                  key={command.name}
+                  onClick={() => handleCommandSelect(command)}
+                  type="button"
+                >
+                  <Slash className="mt-0.5 shrink-0 text-blue-600" size={15} />
+                  <span>
+                    <span className="block text-sm font-medium text-slate-800">
+                      {command.name}
+                    </span>
+                    <span className="block text-xs text-slate-500">
+                      {command.description}
+                    </span>
+                  </span>
+                </button>
+              ))
+            ) : (
+              <p className="px-3 py-2 text-xs text-slate-500">未找到匹配的常用命令</p>
+            )}
+          </div>
+        ) : null}
+        {entityReference ? (
+          <div className="absolute bottom-full mb-2 w-full overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg shadow-slate-200/70">
+            {entitiesQuery.isLoading ? (
+              <p className="px-3 py-2 text-xs text-slate-500">搜索实体中…</p>
+            ) : entitiesQuery.data?.items.length ? (
+              entitiesQuery.data.items.map((entity) => (
+                <button
+                  className="flex w-full items-start gap-3 px-3 py-2.5 text-left hover:bg-slate-50"
+                  key={entity.id}
+                  onClick={() => handleEntitySelect(entity)}
+                  type="button"
+                >
+                  <AtSign className="mt-0.5 shrink-0 text-emerald-600" size={15} />
+                  <span>
+                    <span className="block text-sm font-medium text-slate-800">
+                      {entity.name}
+                    </span>
+                    <span className="block text-xs text-slate-500">
+                      {entity.type} · {entity.namespace}
+                    </span>
+                  </span>
+                </button>
+              ))
+            ) : (
+              <p className="px-3 py-2 text-xs text-slate-500">未找到匹配的实体</p>
+            )}
+          </div>
+        ) : null}
+        <form
+          className="rounded-lg border border-blue-500 bg-white p-3 shadow-lg shadow-slate-200/60"
+          onSubmit={handleSubmit}
+        >
         <textarea
           className="max-h-40 w-full resize-none border-0 text-sm text-slate-800 outline-none placeholder:text-slate-400"
           onChange={(event) => setContent(event.target.value)}
@@ -772,9 +914,7 @@ function ChatMessageInput({
         />
         {error ? <p className="mt-1 text-xs text-red-600">{error}</p> : null}
         <div className="flex items-center justify-between">
-          <button className="inline-flex h-8 items-center gap-1 rounded-md border border-slate-200 px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50" type="button">
-            <Paperclip size={14} /> Attach <ChevronDown size={13} />
-          </button>
+          <p className="text-xs text-slate-400">输入 / 选择命令，输入 @ 引用实体</p>
           <div className="flex items-center">
           {isStreaming ? (
             <button
@@ -795,7 +935,8 @@ function ChatMessageInput({
           </Button>
           </div>
         </div>
-      </form>
+        </form>
+      </div>
     </div>
   );
 }

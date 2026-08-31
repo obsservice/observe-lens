@@ -27,8 +27,25 @@ class UnavailableAgentClient:
 
 class AssistantAgentClient:
     async def stream_run(self, conversation_id: int, run_id: int, content: str):  # type: ignore[no-untyped-def]
-        yield 'event: output.progress\ndata: {"type":"output.progress","data":{"content":"partial"}}\n\n'
-        yield 'event: output.completed\ndata: {"type":"output.completed","data":{"content":"final answer"}}\n\n'
+        yield (
+            "event: output.progress\ndata: "
+            '{"type":"output.progress","data":{"content":"partial"}}\n\n'
+        )
+        yield (
+            "event: output.completed\ndata: "
+            '{"type":"output.completed","data":{"content":"final answer"}}\n\n'
+        )
+
+
+def test_list_common_commands_returns_chat_shortcuts() -> None:
+    commands = ConversationService.list_common_commands()
+
+    assert [command.name for command in commands] == [
+        "/get_info",
+        "/get_metric",
+        "/analysis_incident",
+    ]
+    assert all(command.description and command.prompt for command in commands)
 
 
 @pytest.mark.asyncio
@@ -66,10 +83,7 @@ async def test_stream_run_persists_assistant_response() -> None:
 
     service._repository.next_message_sequence = next_sequence  # type: ignore[method-assign]
 
-    events = [
-        event
-        async for event in service.stream_run(7, 11, "Investigate Kafka", tenant_id=7)
-    ]
+    events = [event async for event in service.stream_run(7, 11, "Investigate Kafka", tenant_id=7)]
 
     assert len(events) == 2
     assert len(captured) == 1

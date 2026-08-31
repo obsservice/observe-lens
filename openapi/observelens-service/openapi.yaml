@@ -94,6 +94,9 @@ paths:
   /conversations:
     $ref: "./paths/conversations.yaml#/conversations"
 
+  /conversations/cmds:
+    $ref: "./paths/conversations.yaml#/conversationCommands"
+
   /conversations/{conversation_id}:
     $ref: "./paths/conversations.yaml#/conversation"
 

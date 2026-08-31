@@ -19,6 +19,7 @@ from observelens_service.modules.conversations.models import (
 )
 from observelens_service.modules.conversations.repository import ConversationRepository
 from observelens_service.modules.conversations.schemas import (
+    ConversationCommandResponse,
     ConversationCreateRequest,
     ConversationPage,
     ConversationResponse,
@@ -40,6 +41,26 @@ class ConversationService:
         self._session = session
         self._repository = ConversationRepository(session)
         self._agent_client = agent_client
+
+    @staticmethod
+    def list_common_commands() -> list[ConversationCommandResponse]:
+        return [
+            ConversationCommandResponse(
+                name="/get_info",
+                description="查看实体详情",
+                prompt="请查看以下实体的详细信息：",
+            ),
+            ConversationCommandResponse(
+                name="/get_metric",
+                description="查看指标",
+                prompt="请查看以下实体或资源的指标：",
+            ),
+            ConversationCommandResponse(
+                name="/analysis_incident",
+                description="分析故障根因",
+                prompt="请分析以下故障的根因、影响范围和修复建议：",
+            ),
+        ]
 
     async def list(self, context: RequestContext, page: int, page_size: int) -> ConversationPage:
         rows, total = await self._repository.list(context.tenant_id, page, page_size)
@@ -224,9 +245,7 @@ class ConversationService:
             id=new_id(),
             tenant_id=tenant_id,
             conversation_id=conversation_id,
-            sequence_id=await self._repository.next_message_sequence(
-                tenant_id, conversation_id
-            ),
+            sequence_id=await self._repository.next_message_sequence(tenant_id, conversation_id),
             run_id=run_id,
             sender_role="ASSISTANT",
             content=content,

@@ -53,6 +53,27 @@ conversations:
             schema:
               $ref: "../schemas/conversation.yaml#/Conversation"
 
+conversationCommands:
+  parameters:
+    - $ref: "../components/parameters.yaml#/TenantId"
+    - $ref: "../components/parameters.yaml#/UserId"
+    - $ref: "../components/parameters.yaml#/RequestId"
+
+  get:
+    tags:
+      - Conversation
+    summary: List common conversation commands
+    operationId: listConversationCommands
+    responses:
+      "200":
+        description: Common chat commands.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "../schemas/conversation.yaml#/ConversationCommand"
+
 conversation:
   parameters:
     - $ref: "../components/parameters.yaml#/TenantId"
