@@ -1,18 +1,21 @@
+from typing import Any, cast
+
 from langgraph.graph import END, START, StateGraph
 
-from observelens_agent.agent.nodes.intent_node import intent_node
+from observelens_agent.agent.intents.recognizer import IntentRecognizer
+from observelens_agent.agent.nodes.intent_node import create_intent_node
 from observelens_agent.agent.nodes.mock_node import mock_node
 from observelens_agent.agent.nodes.tracing_node import tracing_node
 from observelens_agent.agent.state.state import AgentState
 
 
 def _route_intent(state: AgentState) -> str:
-    return state.intent
+    return "mock" if state.intent == "mock" else "agent"
 
 
-def build_agent_graph() -> StateGraph[AgentState]:
+def build_agent_graph(intent_recognizer: IntentRecognizer | None = None) -> StateGraph[AgentState]:
     graph: StateGraph[AgentState] = StateGraph(AgentState)
-    graph.add_node("intent", intent_node)
+    graph.add_node("intent", cast(Any, create_intent_node(intent_recognizer or IntentRecognizer())))
     graph.add_node("mock", mock_node)
     graph.add_node("tracing", tracing_node)
 

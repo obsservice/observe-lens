@@ -1,19 +1,29 @@
+from collections.abc import Awaitable, Callable
+
 import structlog
 
+from observelens_agent.agent.intents.recognizer import IntentRecognizer
 from observelens_agent.agent.state.state import AgentState
 
 logger = structlog.get_logger(__name__)
 
-_MOCK_KEYWORDS = ("mock", "demo", "样例", "演示", "假数据")
+IntentNode = Callable[[AgentState], Awaitable[AgentState]]
 
 
-def intent_node(state: AgentState) -> AgentState:
-    """Detect whether the user is requesting mock/demo data."""
-    content_lower = state.msg.lower()
-    if any(kw in content_lower for kw in _MOCK_KEYWORDS):
-        state.intent = "mock"
-    else:
-        state.intent = "agent"
+def create_intent_node(recognizer: IntentRecognizer) -> IntentNode:
+    async def intent_node(state: AgentState) -> AgentState:
+        match = await recognizer.recognize(state.msg)
+        state.intent = match.intent
+        state.intent_confidence = match.confidence
+        state.intent_reason = match.reason
+        state.intent_source = match.source
+        logger.info(
+            "intent_detected",
+            confidence=match.confidence,
+            intent=match.intent,
+            reason=match.reason,
+            source=match.source,
+        )
+        return state
 
-    logger.info("intent_detected", intent=state.intent, msg=state.msg)
-    return state
+    return intent_node

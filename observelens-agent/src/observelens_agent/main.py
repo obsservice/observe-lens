@@ -18,6 +18,7 @@ warnings.filterwarnings(
 )
 
 from observelens_agent.agent.graph import build_agent_graph  # noqa: E402
+from observelens_agent.agent.intents.recognizer import build_intent_recognizer  # noqa: E402
 from observelens_agent.api import api_router  # noqa: E402
 from observelens_agent.common.exceptions import DomainError, domain_error_handler  # noqa: E402
 from observelens_agent.config.settings import get_settings  # noqa: E402
@@ -28,7 +29,7 @@ logger = structlog.get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
-    app.state.agent_graph = build_agent_graph().compile()
+    app.state.agent_graph = build_agent_graph(build_intent_recognizer(settings)).compile()
     logger.info("service_started", environment=settings.environment)
     yield
     logger.info("service_stopped")

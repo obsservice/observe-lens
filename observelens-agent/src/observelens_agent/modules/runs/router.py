@@ -35,7 +35,7 @@ async def stream_run(request: RunStreamRequest, http_request: Request) -> Stream
             elif mode == "values" and isinstance(data, dict):
                 if "intent" in data:
                     intent = data["intent"]
-                if intent == "agent" and "msg" in data:
+                if intent != "mock" and "msg" in data:
                     agent_output = data["msg"]
 
         if agent_output is not None:
