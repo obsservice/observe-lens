@@ -1,4 +1,4 @@
-InspectionStatus: { type: string, enum: [enabled, disabled, running, success, failed] }
+InspectionStatus: { type: string, enum: [ENABLED, DISABLED, RUNNING, SUCCESS, FAILED] }
 Inspection:
   type: object
   required: [id, name, scope, schedule, status, created_at, updated_at]

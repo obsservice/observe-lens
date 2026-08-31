@@ -1,3 +1,5 @@
+from typing import cast
+
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -53,6 +55,31 @@ class InspectionRepository:
             .order_by(InspectionRunModel.create_time.desc())
         )
         return result
+
+    async def active_run(self, tenant_id: int, task_id: int) -> InspectionRunModel | None:
+        return cast(
+            InspectionRunModel | None,
+            await self._session.scalar(
+                select(InspectionRunModel)
+                .where(
+                    InspectionRunModel.tenant_id == tenant_id,
+                    InspectionRunModel.task_id == task_id,
+                    InspectionRunModel.status.in_(("PENDING", "RUNNING")),
+                )
+                .order_by(InspectionRunModel.create_time.desc())
+            ),
+        )
+
+    async def get_run(self, tenant_id: int, run_id: int) -> InspectionRunModel | None:
+        return cast(
+            InspectionRunModel | None,
+            await self._session.scalar(
+                select(InspectionRunModel).where(
+                    InspectionRunModel.tenant_id == tenant_id,
+                    InspectionRunModel.id == run_id,
+                )
+            ),
+        )
 
     def add(self, model: InspectionModel | InspectionScheduleModel | InspectionRunModel) -> None:
         self._session.add(model)

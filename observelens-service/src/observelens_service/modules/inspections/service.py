@@ -1,9 +1,10 @@
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from observelens_service.common.context import RequestContext
-from observelens_service.common.exceptions import ResourceNotFoundError
+from observelens_service.common.exceptions import ResourceConflictError, ResourceNotFoundError
 from observelens_service.modules.conversations.service import new_id
 from observelens_service.modules.inspections.models import (
     InspectionModel,
@@ -84,20 +85,24 @@ class InspectionService:
         await self._session.flush()
         return await self._response(context.tenant_id, task)
 
-    async def execute(
-        self, context: RequestContext, inspection_id: int
-    ) -> InspectionExecutionResponse:
-        await self._require(context, inspection_id)
+    async def execute(self, context: RequestContext, inspection_id: int) -> "InspectionExecution":
+        task = await self._require(context, inspection_id)
+        if await self._repository.active_run(context.tenant_id, inspection_id):
+            raise ResourceConflictError("Inspection already has an active run")
         run = InspectionRunModel(
             id=new_id(),
             tenant_id=context.tenant_id,
             task_id=inspection_id,
             trigger_type="MANUAL",
-            status="PENDING",
+            status="RUNNING",
         )
         self._repository.add(run)
         await self._session.flush()
-        return InspectionExecutionResponse(run_id=run.id, status="PENDING")
+        return InspectionExecution(
+            response=InspectionExecutionResponse(run_id=run.id, status="RUNNING"),
+            content=self._render_agent_content(task),
+            task_id=task.id,
+        )
 
     async def _require(self, context: RequestContext, inspection_id: int) -> InspectionModel:
         task = await self._repository.get(context.tenant_id, inspection_id)
@@ -163,3 +168,15 @@ class InspectionService:
             if schedule.interval_seconds == 86400
             else "Every Hour"
         )
+
+    @staticmethod
+    def _render_agent_content(task: InspectionModel) -> str:
+        prompt = task.input_template.replace("{{scope}}", task.scope).strip()
+        return f"/analysis_incident 巡检任务 {task.name}：{prompt}"
+
+
+@dataclass(frozen=True)
+class InspectionExecution:
+    response: InspectionExecutionResponse
+    content: str
+    task_id: int

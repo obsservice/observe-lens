@@ -46,4 +46,4 @@ class InspectionPage(BaseModel):
 
 class InspectionExecutionResponse(BaseModel):
     run_id: int
-    status: Literal["PENDING"]
+    status: Literal["RUNNING", "SUCCESS", "FAILED"]

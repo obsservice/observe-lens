@@ -1,13 +1,16 @@
 from collections.abc import AsyncIterator
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from observelens_service.clients.agent import AgentClient
 from observelens_service.common.context import RequestContext
 from observelens_service.common.dependencies import get_request_context, get_session_factory
+from observelens_service.config.settings import get_settings
 from observelens_service.database.session import session_scope
+from observelens_service.modules.inspections.execution import execute_inspection_agent
 from observelens_service.modules.inspections.schemas import (
     InspectionCreateRequest,
     InspectionExecutionResponse,
@@ -29,6 +32,15 @@ async def get_service(
 
 ServiceDependency = Annotated[InspectionService, Depends(get_service)]
 ContextDependency = Annotated[RequestContext, Depends(get_request_context)]
+SessionFactoryDependency = Annotated[async_sessionmaker[AsyncSession], Depends(get_session_factory)]
+
+
+def get_agent_client() -> AgentClient:
+    settings = get_settings()
+    return AgentClient(str(settings.agent_base_url), settings.agent_timeout_seconds)
+
+
+AgentDependency = Annotated[AgentClient, Depends(get_agent_client)]
 
 
 @router.get("", response_model=InspectionPage)
@@ -94,9 +106,24 @@ async def delete_inspection(
     "/{inspection_id:int}/execute", response_model=InspectionExecutionResponse, status_code=202
 )
 async def execute_inspection(
-    inspection_id: int, context: ContextDependency, service: ServiceDependency
+    inspection_id: int,
+    context: ContextDependency,
+    service: ServiceDependency,
+    background_tasks: BackgroundTasks,
+    agent_client: AgentDependency,
+    factory: SessionFactoryDependency,
 ) -> InspectionExecutionResponse:
-    return await service.execute(context, inspection_id)
+    execution = await service.execute(context, inspection_id)
+    background_tasks.add_task(
+        execute_inspection_agent,
+        agent_client,
+        factory,
+        context.tenant_id,
+        execution.task_id,
+        execution.response.run_id,
+        execution.content,
+    )
+    return execution.response
 
 
 @router.post("/{inspection_id:int}/enable", response_model=InspectionResponse)
