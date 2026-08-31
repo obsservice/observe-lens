@@ -33,6 +33,17 @@ make run
 `ws000003`。未引用实体、Catalog 不可用或实体不存在时，Agent 会返回可读的错误提示而不中断
 会话流。
 
+### `get_metric` 时序查询
+
+当请求命中 `/get_metric` 时，Agent 会查询实体关联的 Dataset，并仅解析其中
+`document.kind=MetricSet` 的具体数据集实例。随后按输入语义选择最相关的 `spec.metrics` 项，从其
+`generator` 读取 PromQL，并仅覆盖原始 PromQL selector 中已有的 MetricSet 标签，避免把实体字段
+错误地当作 Prometheus 标签追加。随后 Agent
+通过 FastMCP SSE 调用 `prom_range_query` 获取时序数据。配置
+`OBSERVELENS_AGENT_MCP_GATEWAY_SSE_URL` 指向 Gateway 的 `/sse` 端点；默认查询窗口由
+`OBSERVELENS_AGENT_METRIC_QUERY_DEFAULT_WINDOW_MINUTES` 控制，也支持“最近 30 分钟”“last 2h”等
+时间范围，采样间隔由 `OBSERVELENS_AGENT_METRIC_QUERY_STEP` 控制。
+
 开发质量检查：
 
 ```bash

@@ -14,6 +14,11 @@ class Settings(BaseSettings):
     catalog_base_url: str | None = None
     catalog_timeout_seconds: float = 10.0
     catalog_workspace_id: str = "ws000003"
+    mcp_gateway_sse_url: str = "http://localhost:3084/sse"
+    mcp_gateway_timeout_seconds: float = 15.0
+    metric_query_default_window_minutes: int = 60
+    metric_query_step: str = "60s"
+    metric_query_max_definitions: int = 3
     environment: str = "development"
     intent_llm_api_key: str | None = None
     intent_llm_base_url: str | None = None

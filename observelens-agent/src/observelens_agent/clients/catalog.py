@@ -32,12 +32,40 @@ class CatalogClient:
             raise CatalogClientError("Observability Data Catalog 返回了无效实体数据") from exc
         return self._unwrap_entity_response(payload)
 
+    async def get_metric_sets(self, entity_id: str) -> list[dict[str, Any]]:
+        if self._base_url is None:
+            raise CatalogClientError("未配置 Observability Data Catalog 地址")
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                response = await client.get(self._metric_sets_url(entity_id))
+                if response.status_code == 404:
+                    raise CatalogClientError("未找到指定实体或其 MetricSet")
+                response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise CatalogClientError("Observability Data Catalog 不可用") from exc
+
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise CatalogClientError(
+                "Observability Data Catalog 返回了无效 MetricSet 数据"
+            ) from exc
+        return self._unwrap_metric_sets_response(payload)
+
     def _entity_url(self, entity_id: str) -> str:
         if self._base_url is None:
             raise CatalogClientError("未配置 Observability Data Catalog 地址")
         return (
             f"{self._base_url}/api/v1/workspaces/{quote(self._workspace_id, safe='')}/"
             f"entities/{quote(entity_id, safe='')}"
+        )
+
+    def _metric_sets_url(self, entity_id: str) -> str:
+        if self._base_url is None:
+            raise CatalogClientError("未配置 Observability Data Catalog 地址")
+        return (
+            f"{self._base_url}/api/v1/workspaces/{quote(self._workspace_id, safe='')}/"
+            f"entities/{quote(entity_id, safe='')}/dataset?type=metric"
         )
 
     @staticmethod
@@ -48,3 +76,12 @@ class CatalogClient:
         if not isinstance(entity, dict):
             raise CatalogClientError("Observability Data Catalog 返回了无效实体数据")
         return cast(dict[str, Any], entity)
+
+    @staticmethod
+    def _unwrap_metric_sets_response(payload: object) -> list[dict[str, Any]]:
+        if not isinstance(payload, dict):
+            raise CatalogClientError("Observability Data Catalog 返回了无效 MetricSet 数据")
+        data = payload.get("data", payload)
+        if not isinstance(data, dict) or not isinstance(data.get("items"), list):
+            raise CatalogClientError("Observability Data Catalog 返回了无效 MetricSet 数据")
+        return [item for item in data["items"] if isinstance(item, dict)]

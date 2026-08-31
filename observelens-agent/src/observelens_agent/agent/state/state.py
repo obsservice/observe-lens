@@ -12,6 +12,7 @@ class AgentState(BaseModel):
     run_id: str = ""
     incident: dict[str, Any] = Field(default_factory=dict)
     entity_details: dict[str, Any] | None = None
+    metric_results: list[dict[str, Any]] = Field(default_factory=list)
     intent: IntentName = "general"
     intent_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     intent_reason: str = ""

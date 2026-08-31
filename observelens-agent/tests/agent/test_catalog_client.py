@@ -13,6 +13,10 @@ def test_catalog_client_uses_workspace_and_encodes_entity_id() -> None:
     assert client._entity_url("k8s.cluster:md6s8j7x") == (
         "http://localhost:3083/api/v1/workspaces/ws000003/entities/k8s.cluster%3Amd6s8j7x"
     )
+    assert client._metric_sets_url("k8s.pod:prod-api-123") == (
+        "http://localhost:3083/api/v1/workspaces/ws000003/"
+        "entities/k8s.pod%3Aprod-api-123/dataset?type=metric"
+    )
 
 
 def test_catalog_client_unwraps_catalog_data_response() -> None:
@@ -25,3 +29,27 @@ def test_catalog_client_unwraps_catalog_data_response() -> None:
     entity = CatalogClient._unwrap_entity_response(payload)
 
     assert entity["__entity_uuid__"] == "k8s.cluster:md6s8j7x"
+
+
+def test_catalog_client_unwraps_metric_set_dataset_items() -> None:
+    payload = {
+        "code": 0,
+        "msg": "success",
+        "data": {
+            "entity_id": "k8s.pod:prod-api-123",
+            "items": [
+                {
+                    "dataset": {
+                        "document": {
+                            "kind": "MetricSet",
+                            "metadata": {"name": "k8s.pod.metric"},
+                        }
+                    }
+                }
+            ],
+        },
+    }
+
+    items = CatalogClient._unwrap_metric_sets_response(payload)
+
+    assert items[0]["dataset"]["document"]["kind"] == "MetricSet"

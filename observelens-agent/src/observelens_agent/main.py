@@ -21,6 +21,7 @@ from observelens_agent.agent.graph import build_agent_graph  # noqa: E402
 from observelens_agent.agent.intents.recognizer import build_intent_recognizer  # noqa: E402
 from observelens_agent.api import api_router  # noqa: E402
 from observelens_agent.clients.catalog import CatalogClient  # noqa: E402
+from observelens_agent.clients.mcp_gateway import MCPGatewayClient  # noqa: E402
 from observelens_agent.common.exceptions import DomainError, domain_error_handler  # noqa: E402
 from observelens_agent.config.settings import get_settings  # noqa: E402
 
@@ -30,13 +31,22 @@ logger = structlog.get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
+    catalog_client = CatalogClient(
+        base_url=settings.catalog_base_url,
+        timeout_seconds=settings.catalog_timeout_seconds,
+        workspace_id=settings.catalog_workspace_id,
+    )
     app.state.agent_graph = build_agent_graph(
         intent_recognizer=build_intent_recognizer(settings),
-        catalog_client=CatalogClient(
-            base_url=settings.catalog_base_url,
-            timeout_seconds=settings.catalog_timeout_seconds,
-            workspace_id=settings.catalog_workspace_id,
+        catalog_client=catalog_client,
+        metric_catalog_client=catalog_client,
+        metric_gateway_client=MCPGatewayClient(
+            sse_url=settings.mcp_gateway_sse_url,
+            timeout_seconds=settings.mcp_gateway_timeout_seconds,
         ),
+        metric_query_default_window_minutes=settings.metric_query_default_window_minutes,
+        metric_query_step=settings.metric_query_step,
+        metric_query_limit=settings.metric_query_max_definitions,
     ).compile()
     logger.info("service_started", environment=settings.environment)
     yield
