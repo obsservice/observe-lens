@@ -2,14 +2,14 @@ from typing import Any, cast
 
 from langgraph.graph import END, START, StateGraph
 
-from observelens_agent.agent.nodes.analysis_incident_node import (
+from observelens_agent.agent.nodes.get_info_node import CatalogEntityClient
+from observelens_agent.agent.nodes.get_metric_node import MetricCatalogClient, MetricGatewayClient
+from observelens_agent.agent.nodes.intent_node import create_intent_node
+from observelens_agent.agent.nodes.rca_node_common import (
     IncidentCatalogClient,
     IncidentGatewayClient,
     IncidentKnowledgeClient,
 )
-from observelens_agent.agent.nodes.get_info_node import CatalogEntityClient
-from observelens_agent.agent.nodes.get_metric_node import MetricCatalogClient, MetricGatewayClient
-from observelens_agent.agent.nodes.intent_node import create_intent_node
 from observelens_agent.agent.state.state import AgentState
 from observelens_agent.agent.subgraphs.cmd_graph import CommandGatewayClient, build_cmd_subgraph
 from observelens_agent.agent.subgraphs.qa_graph import build_qa_subgraph

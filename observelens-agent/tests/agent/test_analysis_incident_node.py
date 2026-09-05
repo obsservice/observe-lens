@@ -88,7 +88,7 @@ class FakeIncidentGatewayClient:
 
 
 @pytest.mark.asyncio
-async def test_analysis_incident_streams_all_investigation_steps() -> None:
+async def test_rca_pipeline_streams_all_stages() -> None:
     catalog = FakeIncidentCatalogClient()
     knowledge = FakeKnowledgeClient()
     gateway = FakeIncidentGatewayClient()
@@ -120,14 +120,11 @@ async def test_analysis_incident_streams_all_investigation_steps() -> None:
     assert event_types[0] == "analysis.generated"
     assert "plan.generated" in event_types
     assert started_steps == [
-        "identify_entity",
-        "learn_architecture",
-        "load_semantics",
-        "plan_telemetry",
-        "fetch_telemetry",
-        "detect_anomalies",
-        "infer_root_cause",
-        "build_report",
+        "planner",
+        "evidence",
+        "hypothesis",
+        "judge",
+        "report",
     ]
     assert completed_steps == started_steps
     assert "finding.generated" in event_types
@@ -147,4 +144,5 @@ async def test_analysis_incident_uses_catalog_search_when_entity_is_not_referenc
 
     assert result["intent_type"] == "rca"
     assert result["incident_report"]["entity_id"] == "k8s.pod:prod-api-123"
+    assert result["incident_report"]["judgement"]["verdict"] == "accepted"
     assert "应用或依赖调用失败" in result["msg"]

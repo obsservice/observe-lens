@@ -23,6 +23,7 @@ class AgentState(BaseModel):
     log_results: dict[str, Any] | None = None
     trace_result: dict[str, Any] | None = None
     event_results: dict[str, Any] | None = None
+    rca_context: dict[str, Any] = Field(default_factory=dict)
     incident_report: dict[str, Any] | None = None
     run_failure_message: str | None = None
     intent_type: IntentType = "qa"
