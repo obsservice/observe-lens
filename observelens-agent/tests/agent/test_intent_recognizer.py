@@ -1,8 +1,13 @@
 import pytest
 
 from observelens_agent.agent.graph import build_agent_graph
-from observelens_agent.agent.intents.recognizer import IntentRecognizer
+from observelens_agent.agent.intents.commands import extract_short_cmd
+from observelens_agent.agent.intents.entities import extract_entity
+from observelens_agent.agent.intents.llm import OpenAICompatibleIntentLLM
+from observelens_agent.agent.intents.recognizer import IntentRecognizer, build_intent_recognizer
 from observelens_agent.agent.intents.schemas import LLMIntentResponse
+from observelens_agent.agent.state.default_config import DefaultConfig
+from observelens_agent.config.settings import Settings
 
 
 class FakeIntentLLM:
@@ -15,12 +20,19 @@ class FakeIntentLLM:
         return self._response
 
 
+def test_factory_always_wires_an_llm_client() -> None:
+    recognizer = build_intent_recognizer(DefaultConfig.from_settings(Settings()))
+
+    assert isinstance(recognizer._llm, OpenAICompatibleIntentLLM)
+
+
 @pytest.mark.asyncio
 async def test_command_has_highest_priority() -> None:
     llm = FakeIntentLLM(None)
     match = await IntentRecognizer(llm).recognize("/get_info(查看实体详情) CPU 指标")
 
-    assert match.intent == "get_info"
+    assert match.intent_type == "cmd"
+    assert match.short_cmd == "get_info"
     assert match.source == "command"
     assert match.confidence == 1.0
     assert llm.calls == []
@@ -28,30 +40,47 @@ async def test_command_has_highest_priority() -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("content", "intent"),
+    ("content", "intent_type", "short_cmd"),
     [
-        ("查询 payment-service 的实体详情", "get_info"),
-        ("查看 CPU、P99 延迟和 QPS 指标", "get_metric"),
-        ("分析这次告警故障的根因", "analysis_incident"),
-        ("给我演示一段 mock 数据", "mock"),
+        ("查询 payment-service 的实体详情", "cmd", "get_info"),
+        ("查看 CPU、P99 延迟和 QPS 指标", "cmd", "get_metric"),
+        ("分析这次告警故障的根因", "rca", None),
+        ("给我演示一段 mock 数据", "cmd", "mock"),
     ],
 )
-async def test_regex_rules_match_known_intents(content: str, intent: str) -> None:
+async def test_regex_rules_match_known_intents(
+    content: str, intent_type: str, short_cmd: str | None
+) -> None:
     match = await IntentRecognizer().recognize(content)
 
-    assert match.intent == intent
-    assert match.source == "regex"
+    assert match.intent_type == intent_type
+    assert match.short_cmd == short_cmd
+    assert match.source == "rule"
     assert match.confidence == 0.9
+
+
+def test_keyword_extractors_return_entity_and_short_command() -> None:
+    assert extract_entity("/get_info @payment [entity_id=k8s.pod:prod-api-123]") == (
+        "k8s.pod:prod-api-123"
+    )
+    assert extract_entity("查询 payment-service 的实体详情") == "payment-service"
+    assert extract_short_cmd(" /analysis_incident 数据库超时") == "analysis_incident"
 
 
 @pytest.mark.asyncio
 async def test_llm_is_used_after_command_and_regex_miss() -> None:
     llm = FakeIntentLLM(
-        LLMIntentResponse(intent="analysis_incident", confidence=0.82, reason="用户请求定位问题")
+        LLMIntentResponse(
+            intent_type="rca",
+            entity="order-service",
+            confidence=0.82,
+            reason="用户请求定位问题",
+        )
     )
     match = await IntentRecognizer(llm).recognize("为什么订单处理变慢？")
 
-    assert match.intent == "analysis_incident"
+    assert match.intent_type == "rca"
+    assert match.entity == "order-service"
     assert match.source == "llm"
     assert match.confidence == 0.82
     assert llm.calls == ["为什么订单处理变慢？"]
@@ -61,14 +90,15 @@ async def test_llm_is_used_after_command_and_regex_miss() -> None:
 async def test_fallback_returns_general_when_llm_is_not_configured() -> None:
     match = await IntentRecognizer().recognize("帮我写一份今天的工作总结")
 
-    assert match.intent == "general"
+    assert match.intent_type == "qa"
     assert match.source == "fallback"
 
 
 @pytest.mark.asyncio
 async def test_graph_keeps_the_detected_intent_in_state() -> None:
-    graph = build_agent_graph(IntentRecognizer()).compile()
+    graph = build_agent_graph(None, None, None).compile()
     state = await graph.ainvoke({"msg": "/get_metric(查看指标) payment-service"})
 
-    assert state["intent"] == "get_metric"
+    assert state["intent_type"] == "cmd"
+    assert state["short_cmd"] == "get_metric"
     assert state["intent_source"] == "command"

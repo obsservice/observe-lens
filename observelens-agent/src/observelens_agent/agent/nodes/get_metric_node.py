@@ -195,11 +195,9 @@ def resolve_time_range(
 def create_get_metric_node(
     catalog_client: MetricCatalogClient | None,
     gateway_client: MetricGatewayClient | None,
-    default_window_minutes: int,
-    query_step: str,
-    query_limit: int,
 ) -> GetMetricNode:
     async def get_metric_node(state: AgentState) -> AgentState:
+        default_config = state.default_config
         entity_id = extract_entity_id(state.msg)
         if entity_id is None:
             state.msg = "请先使用 @ 引用目标实体，再执行 /get_metric。"
@@ -217,16 +215,28 @@ def create_get_metric_node(
             return state
 
         definitions = extract_metric_definitions(dataset_items)
-        selected = select_metric_definitions(definitions, state.msg, query_limit)
+        selected = select_metric_definitions(
+            definitions,
+            state.msg,
+            default_config.metric_query_max_definitions,
+        )
         if not selected:
             state.msg = "未在该实体关联的 MetricSet 中找到可查询的指标。"
             return state
 
-        start, end = resolve_time_range(state.msg, default_window_minutes)
+        start, end = resolve_time_range(
+            state.msg,
+            default_config.metric_query_default_window_minutes,
+        )
         queries = [(definition, render_promql(definition, entity)) for definition in selected]
         results = await asyncio.gather(
             *(
-                gateway_client.range_query(query, start=start, end=end, step=query_step)
+                gateway_client.range_query(
+                    query,
+                    start=start,
+                    end=end,
+                    step=default_config.metric_query_step,
+                )
                 for _, query in queries
             ),
             return_exceptions=True,

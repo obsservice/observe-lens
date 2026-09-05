@@ -1,7 +1,6 @@
 import pytest
 
 from observelens_agent.agent.graph import build_agent_graph
-from observelens_agent.agent.intents.recognizer import IntentRecognizer
 from observelens_agent.agent.nodes.get_info_node import create_get_info_node, extract_entity_id
 from observelens_agent.agent.state.state import AgentState
 from observelens_agent.clients.catalog import CatalogClientError
@@ -72,10 +71,10 @@ async def test_get_info_node_returns_catalog_error_to_user() -> None:
 @pytest.mark.asyncio
 async def test_graph_routes_get_info_to_catalog_node() -> None:
     catalog = FakeCatalogClient(entity={"id": "entity-123", "name": "payment-service"})
-    graph = build_agent_graph(IntentRecognizer(), catalog).compile()
+    graph = build_agent_graph(None, catalog, None).compile()
 
     result = await graph.ainvoke({"msg": "/get_info [entity_id=entity-123]"})
 
     assert catalog.requested_ids == ["entity-123"]
-    assert result["intent"] == "get_info"
+    assert result["intent_type"] == "cmd"
     assert result["entity_details"]["name"] == "payment-service"

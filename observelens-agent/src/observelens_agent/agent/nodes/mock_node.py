@@ -2,7 +2,6 @@
 
 import asyncio
 import json
-from typing import Any
 
 import structlog
 from langgraph.config import get_stream_writer
@@ -48,7 +47,7 @@ async def mock_node(state: AgentState) -> AgentState:
     run_id = state.run_id or "run_mock"
     writer = get_stream_writer()
 
-    seq = 0
+    seq = 1
 
     def emit(event_type: str, data: dict[str, object]) -> None:
         nonlocal seq
@@ -56,16 +55,11 @@ async def mock_node(state: AgentState) -> AgentState:
         sse = _sse(event_type, data, seq, run_id, conversation_id)
         writer({"sse": sse})
 
-    # 1. Run started
-    emit("run.started", {"agent": "k8s-inspection"})
-    await asyncio.sleep(0.1)
-
-    # 2. Analysis
+    # 1. Analysis
     emit(
         "analysis.generated",
         {
-            "content": "识别到当前任务为 Kubernetes 集群巡检，"
-            "将检查节点状态、资源水位和异常事件。",
+            "content": "识别到当前任务为 Kubernetes 集群巡检，将检查节点状态、资源水位和异常事件。",
         },
     )
     await asyncio.sleep(0.35)
@@ -118,8 +112,7 @@ async def mock_node(state: AgentState) -> AgentState:
             "id": "finding_nodes",
             "category": "issue",
             "title": "发现不可调度节点",
-            "analysis": "发现 1 个节点处于 SchedulingDisabled，"
-            "建议检查节点维护状态或资源压力。",
+            "analysis": "发现 1 个节点处于 SchedulingDisabled，建议检查节点维护状态或资源压力。",
             "source_observation_ids": ["obs_nodes"],
         },
     )
@@ -243,16 +236,5 @@ async def mock_node(state: AgentState) -> AgentState:
     )
     await asyncio.sleep(0.1)
 
-    # Run completed
-    emit("run.completed", {"duration_ms": 4287})
-
     state.msg = "[mock] AESP demo stream"
     return state
-
-
-def extract_sse(chunk: dict[str, Any]) -> str | None:
-    """Extract SSE string from a custom stream chunk."""
-    if isinstance(chunk, dict) and "sse" in chunk:
-        return str(chunk["sse"])
-
-    return None

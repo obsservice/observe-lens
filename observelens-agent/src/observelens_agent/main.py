@@ -18,8 +18,7 @@ warnings.filterwarnings(
 )
 
 from observelens_agent.agent.graph import build_agent_graph  # noqa: E402
-from observelens_agent.agent.intents.recognizer import build_intent_recognizer  # noqa: E402
-from observelens_agent.api import api_router  # noqa: E402
+from observelens_agent.services.api import api_router  # noqa: E402
 from observelens_agent.clients.catalog import CatalogClient  # noqa: E402
 from observelens_agent.clients.knowledge import KnowledgeClient  # noqa: E402
 from observelens_agent.clients.mcp_gateway import MCPGatewayClient  # noqa: E402
@@ -29,9 +28,31 @@ from observelens_agent.config.settings import get_settings  # noqa: E402
 logger = structlog.get_logger(__name__)
 
 
+def build_openapi_schema(app: FastAPI) -> dict[str, object]:
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        routes=app.routes,
+        description=app.description,
+    )
+    app.openapi_schema = schema
+    return schema
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
+
+    knowledge_client = KnowledgeClient(
+        base_url=settings.knowledge_base_url,
+        timeout_seconds=settings.knowledge_base_timeout_seconds,
+        tenant_id=settings.knowledge_base_tenant_id,
+        user_id=settings.knowledge_base_user_id,
+        top_k=settings.incident_rag_top_k,
+    )
     catalog_client = CatalogClient(
         base_url=settings.catalog_base_url,
         timeout_seconds=settings.catalog_timeout_seconds,
@@ -41,32 +62,22 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         sse_url=settings.mcp_gateway_sse_url,
         timeout_seconds=settings.mcp_gateway_timeout_seconds,
     )
+
     app.state.agent_graph = build_agent_graph(
-        intent_recognizer=build_intent_recognizer(settings),
+        knowledge_client=knowledge_client,
         catalog_client=catalog_client,
-        metric_catalog_client=catalog_client,
-        metric_gateway_client=gateway_client,
-        metric_query_default_window_minutes=settings.metric_query_default_window_minutes,
-        metric_query_step=settings.metric_query_step,
-        metric_query_limit=settings.metric_query_max_definitions,
-        incident_catalog_client=catalog_client,
-        incident_knowledge_client=KnowledgeClient(
-            base_url=settings.knowledge_base_url,
-            timeout_seconds=settings.knowledge_base_timeout_seconds,
-            tenant_id=settings.knowledge_base_tenant_id,
-            user_id=settings.knowledge_base_user_id,
-            top_k=settings.incident_rag_top_k,
-        ),
-        incident_gateway_client=gateway_client,
-        incident_log_query_limit=settings.incident_log_query_limit,
+        gateway_client=gateway_client,
     ).compile()
     logger.info("service_started", environment=settings.environment)
+
     yield
+
     logger.info("service_stopped")
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
+
     app = FastAPI(title="ObserveLens Agent API", version="0.1.0", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
@@ -93,20 +104,6 @@ def create_app() -> FastAPI:
         )
 
     return app
-
-
-def build_openapi_schema(app: FastAPI) -> dict[str, object]:
-    if app.openapi_schema:
-        return app.openapi_schema
-
-    schema = get_openapi(
-        title=app.title,
-        version=app.version,
-        routes=app.routes,
-        description=app.description,
-    )
-    app.openapi_schema = schema
-    return schema
 
 
 app = create_app()

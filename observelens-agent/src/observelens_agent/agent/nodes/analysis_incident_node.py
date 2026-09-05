@@ -70,7 +70,7 @@ class _EventEmitter:
     def __init__(self, conversation_id: str, run_id: str) -> None:
         self._conversation_id = conversation_id
         self._run_id = run_id
-        self._sequence = 0
+        self._sequence = 1
         self._writer: Callable[[dict[str, str]], None] | None
         try:
             self._writer = get_stream_writer()
@@ -280,14 +280,10 @@ def create_analysis_incident_node(
     catalog_client: IncidentCatalogClient | None,
     knowledge_client: IncidentKnowledgeClient | None,
     gateway_client: IncidentGatewayClient | None,
-    default_window_minutes: int,
-    query_step: str,
-    metric_query_limit: int,
-    log_query_limit: int,
 ) -> IncidentNode:
     async def analysis_incident_node(state: AgentState) -> AgentState:
+        default_config = state.default_config
         emitter = _EventEmitter(state.conversation_id or "conversation", state.run_id or "run")
-        emitter.emit("run.started", {"agent": "incident-investigator"})
         emitter.emit(
             "analysis.generated",
             {"content": "已启动故障调查，将依次识别实体、学习架构、查询遥测并生成根因报告。"},
@@ -301,8 +297,8 @@ def create_analysis_incident_node(
         )
         if catalog_client is None:
             state.msg = "故障调查依赖 Observability Data Catalog，当前未配置。"
+            state.run_failure_message = state.msg
             emitter.emit("step.failed", {"step_id": "identify_entity", "title": _STEPS[0][1]})
-            emitter.emit("run.failed", {"message": state.msg})
             return state
 
         emitter.emit("step.started", {"step_id": "identify_entity", "title": _STEPS[0][1]})
@@ -317,14 +313,14 @@ def create_analysis_incident_node(
                 entity = await catalog_client.get_entity(entity_id)
         except CatalogClientError as exc:
             state.msg = f"故障实体识别失败：{exc}"
+            state.run_failure_message = state.msg
             emitter.emit("step.failed", {"step_id": "identify_entity", "title": _STEPS[0][1]})
-            emitter.emit("run.failed", {"message": state.msg})
             return state
         entity_id = _entity_id(entity) or entity_id
         if entity_id is None:
             state.msg = "故障实体识别失败：Catalog 返回的数据不含实体 ID。"
+            state.run_failure_message = state.msg
             emitter.emit("step.failed", {"step_id": "identify_entity", "title": _STEPS[0][1]})
-            emitter.emit("run.failed", {"message": state.msg})
             return state
         entity_name = _entity_name(entity) or entity_id
         entity_type = entity.get("__entity_type__")
@@ -402,14 +398,21 @@ def create_analysis_incident_node(
 
         emitter.emit("step.started", {"step_id": "plan_telemetry", "title": _STEPS[3][1]})
         definitions = extract_metric_definitions(datasets)
-        selected_metrics = select_metric_definitions(definitions, state.msg, metric_query_limit)
+        selected_metrics = select_metric_definitions(
+            definitions,
+            state.msg,
+            default_config.metric_query_max_definitions,
+        )
         metric_queries = [(item, render_promql(item, entity)) for item in selected_metrics]
         log_queries = _extract_log_queries(datasets)
         if not log_queries:
             fallback_log_query = _fallback_log_query(entity)
             if fallback_log_query:
                 log_queries = [fallback_log_query]
-        start, end = resolve_time_range(state.msg, default_window_minutes)
+        start, end = resolve_time_range(
+            state.msg,
+            default_config.metric_query_default_window_minutes,
+        )
         telemetry_summary = (
             f"计划查询 {len(metric_queries)} 个指标和 {len(log_queries)} 条日志语义。"
         )
@@ -440,7 +443,12 @@ def create_analysis_incident_node(
             emitter.emit("toolcall.started", {"tool": "prom_range_query"})
             metric_values = await asyncio.gather(
                 *(
-                    gateway_client.range_query(query, start, end, query_step)
+                    gateway_client.range_query(
+                        query,
+                        start,
+                        end,
+                        default_config.metric_query_step,
+                    )
                     for _, query in metric_queries
                 ),
                 return_exceptions=True,
@@ -456,7 +464,12 @@ def create_analysis_incident_node(
                 emitter.emit("toolcall.started", {"tool": "loki_query_logs"})
                 log_values = await asyncio.gather(
                     *(
-                        gateway_client.query_logs(query, start, end, log_query_limit)
+                        gateway_client.query_logs(
+                            query,
+                            start,
+                            end,
+                            default_config.incident_log_query_limit,
+                        )
                         for query in log_queries
                     ),
                     return_exceptions=True,
@@ -525,9 +538,10 @@ def create_analysis_incident_node(
         }
         state.incident_report = report
         state.msg = _report_markdown(report)
+        emitter.emit("output.started", {"format": "markdown"})
         emitter.emit("output.progress", {"format": "markdown", "content": state.msg})
+        emitter.emit("output.completed", {"format": "markdown", "content": state.msg})
         emitter.emit("step.completed", {"step_id": "build_report", "summary": "故障报告已生成。"})
-        emitter.emit("run.completed", {"anomaly_count": len(anomalies)})
         logger.info(
             "analysis_incident_completed", entity_id=entity_id, anomaly_count=len(anomalies)
         )

@@ -15,15 +15,19 @@ make run
 
 每个会话请求会按以下优先级识别意图：
 
-1. 快捷命令：`/get_info`、`/get_metric`、`/analysis_incident`。
-2. 关键词正则：实体详情、指标、故障根因，以及现有 `mock/demo` 演示请求。
-3. LLM 兜底：仅当前两层未命中且同时配置 `OBSERVELENS_AGENT_INTENT_LLM_BASE_URL` 与
-   `OBSERVELENS_AGENT_INTENT_LLM_MODEL` 时，调用 OpenAI 兼容的
+1. CMD：`/get_info`、`/get_metric`、`mock/demo` 等快捷命令与常用可观测数据查看请求。
+2. RCA：故障、告警、根因等根因分析请求。
+3. QA：文档咨询及其它通用问答请求。
+4. LLM 兜底：当前规则未命中时，调用已注入的 OpenAI 兼容客户端；仅当
+   `OBSERVELENS_AGENT_INTENT_LLM_BASE_URL` 与 `OBSERVELENS_AGENT_INTENT_LLM_MODEL` 均已配置时才会请求
    `/chat/completions` 接口进行 JSON 意图分类。
 
-识别结果会保存在图状态的 `intent`、`intent_source`、`intent_confidence` 与
-`intent_reason` 字段中，方便后续规划与审计。未配置 LLM 或模型不可用时会安全降级为
-`general` 意图。
+识别结果会保存在图状态的 `intent_type`、`short_cmd`、`entity`、`intent_source`、`intent_confidence` 与
+`intent_reason` 字段中，方便后续规划与审计。`intent_type` 只会是 `cmd`、`rca` 或 `qa`，主图直接使用该值
+选择对应子图。未配置 LLM 或模型不可用时会安全降级为 `qa`。
+
+Graph 运行参数统一存放在 `AgentState.default_config`。该配置包含指标查询窗口、采样间隔、查询数量、
+RCA 日志查询上限及意图 LLM 参数；其内置默认值，并在创建状态时由 `OBSERVELENS_AGENT_*` 配置覆盖。
 
 ### `get_info` 实体详情查询
 

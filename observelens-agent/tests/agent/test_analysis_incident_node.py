@@ -4,8 +4,7 @@ from typing import Any
 import pytest
 
 from observelens_agent.agent.graph import build_agent_graph
-from observelens_agent.agent.intents.recognizer import IntentRecognizer
-from observelens_agent.agent.nodes.mock_node import extract_sse
+from observelens_agent.services.runs.router import extract_sse_event
 
 DATASETS: list[dict[str, Any]] = [
     {
@@ -93,24 +92,20 @@ async def test_analysis_incident_streams_all_investigation_steps() -> None:
     catalog = FakeIncidentCatalogClient()
     knowledge = FakeKnowledgeClient()
     gateway = FakeIncidentGatewayClient()
-    graph = build_agent_graph(
-        IntentRecognizer(),
-        incident_catalog_client=catalog,
-        incident_knowledge_client=knowledge,
-        incident_gateway_client=gateway,
-    ).compile()
+    graph = build_agent_graph(knowledge, catalog, gateway).compile()
 
     events: list[dict[str, Any]] = []
-    async for mode, data in graph.astream(
+    async for _, mode, data in graph.astream(
         {
             "msg": "/analysis_incident 数据库超时 [entity_id=k8s.pod:prod-api-123]",
             "conversation_id": "conversation-1",
             "run_id": "run-1",
         },
         stream_mode=["custom", "values"],
+        subgraphs=True,
     ):
         if mode == "custom" and isinstance(data, dict):
-            sse = extract_sse(data)
+            sse = extract_sse_event(data)
             if sse:
                 events.append(json.loads(sse.split("data: ", maxsplit=1)[1]))
 
@@ -122,7 +117,7 @@ async def test_analysis_incident_streams_all_investigation_steps() -> None:
         event["data"]["step_id"] for event in events if event["type"] == "step.completed"
     ]
 
-    assert event_types[0] == "run.started"
+    assert event_types[0] == "analysis.generated"
     assert "plan.generated" in event_types
     assert started_steps == [
         "identify_entity",
@@ -136,7 +131,8 @@ async def test_analysis_incident_streams_all_investigation_steps() -> None:
     ]
     assert completed_steps == started_steps
     assert "finding.generated" in event_types
-    assert event_types[-1] == "run.completed"
+    assert event_types[-1] == "step.completed"
+    assert "output.completed" in event_types
     assert len(gateway.metric_requests) == 1
     assert len(gateway.log_requests) == 1
 
@@ -145,15 +141,10 @@ async def test_analysis_incident_streams_all_investigation_steps() -> None:
 async def test_analysis_incident_uses_catalog_search_when_entity_is_not_referenced() -> None:
     catalog = FakeIncidentCatalogClient()
     gateway = FakeIncidentGatewayClient()
-    graph = build_agent_graph(
-        IntentRecognizer(),
-        incident_catalog_client=catalog,
-        incident_knowledge_client=FakeKnowledgeClient(),
-        incident_gateway_client=gateway,
-    ).compile()
+    graph = build_agent_graph(FakeKnowledgeClient(), catalog, gateway).compile()
 
     result = await graph.ainvoke({"msg": "/analysis_incident prod-api 数据库超时"})
 
-    assert result["intent"] == "analysis_incident"
+    assert result["intent_type"] == "rca"
     assert result["incident_report"]["entity_id"] == "k8s.pod:prod-api-123"
     assert "应用或依赖调用失败" in result["msg"]

@@ -4,7 +4,6 @@ from typing import Any
 import pytest
 
 from observelens_agent.agent.graph import build_agent_graph
-from observelens_agent.agent.intents.recognizer import IntentRecognizer
 from observelens_agent.agent.nodes.get_metric_node import (
     MetricDefinition,
     create_get_metric_node,
@@ -110,7 +109,7 @@ def test_resolve_time_range_uses_requested_duration() -> None:
 async def test_get_metric_node_queries_catalog_then_gateway() -> None:
     catalog = FakeMetricCatalogClient()
     gateway = FakeMetricGatewayClient()
-    node = create_get_metric_node(catalog, gateway, 60, query_step="60s", query_limit=3)
+    node = create_get_metric_node(catalog, gateway)
 
     state = await node(
         AgentState(msg="/get_metric(查看指标) CPU 最近 30 分钟 [entity_id=k8s.pod:prod-api-123]")
@@ -126,14 +125,9 @@ async def test_get_metric_node_queries_catalog_then_gateway() -> None:
 async def test_graph_routes_get_metric_to_metric_node() -> None:
     catalog = FakeMetricCatalogClient()
     gateway = FakeMetricGatewayClient()
-    graph = build_agent_graph(
-        IntentRecognizer(),
-        catalog_client=catalog,
-        metric_catalog_client=catalog,
-        metric_gateway_client=gateway,
-    ).compile()
+    graph = build_agent_graph(None, catalog, gateway).compile()
 
     result = await graph.ainvoke({"msg": "/get_metric CPU [entity_id=k8s.pod:prod-api-123]"})
 
-    assert result["intent"] == "get_metric"
+    assert result["intent_type"] == "cmd"
     assert result["metric_results"][0]["metric"] == "pod_cpu_usage"
