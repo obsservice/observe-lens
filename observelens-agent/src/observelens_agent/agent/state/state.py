@@ -17,6 +17,7 @@ class AgentState(BaseModel):
     run_id: str = ""
     default_config: DefaultConfig = Field(default_factory=_default_config)
     incident: dict[str, Any] = Field(default_factory=dict)
+    rag_contexts: list[dict[str, Any]] = Field(default_factory=list)
     entity_details: dict[str, Any] | None = None
     metric_results: list[dict[str, Any]] = Field(default_factory=list)
     incident_report: dict[str, Any] | None = None
