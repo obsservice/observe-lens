@@ -11,8 +11,8 @@ logger = structlog.get_logger(__name__)
 _SYSTEM_PROMPT = """You classify observability chat requests.
 Return JSON only with keys intent_type, short_cmd, entity, confidence, reason.
 Allowed intent_type values: cmd, rca, qa.
-- cmd: command or common observability data lookup. Use short_cmd get_info or get_metric
-  when applicable.
+- cmd: command or common observability data lookup. Use short_cmd get_entity_info,
+  get_metric, get_log, get_tarce, get_event, or generate_incident_report when applicable.
 - rca: request root-cause or incident analysis. short_cmd must be null unless an explicit
   command is present.
 - qa: documentation consultation or other general questions. short_cmd must be null.

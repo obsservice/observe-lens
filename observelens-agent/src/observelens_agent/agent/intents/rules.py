@@ -15,9 +15,9 @@ class RuleIntentMatch:
 _INTENT_RULES: Sequence[tuple[IntentType, ShortCommand | None, re.Pattern[str], str]] = (
     (
         "cmd",
-        "mock",
-        re.compile(r"\b(?:mock|demo)\b|样例|演示|假数据", re.IGNORECASE),
-        "匹配演示数据关键词",
+        "generate_incident_report",
+        re.compile(r"(?:生成|输出|撰写).{0,12}(?:事故|故障|告警).{0,8}报告", re.IGNORECASE),
+        "匹配故障报告关键词",
     ),
     (
         "cmd",
@@ -38,7 +38,25 @@ _INTENT_RULES: Sequence[tuple[IntentType, ShortCommand | None, re.Pattern[str], 
     ),
     (
         "cmd",
-        "get_info",
+        "get_log",
+        re.compile(r"\b(?:log|logs)\b|日志", re.IGNORECASE),
+        "匹配日志查询关键词",
+    ),
+    (
+        "cmd",
+        "get_tarce",
+        re.compile(r"\b(?:trace|tracing|span)\b|链路|追踪", re.IGNORECASE),
+        "匹配链路追踪关键词",
+    ),
+    (
+        "cmd",
+        "get_event",
+        re.compile(r"\b(?:event|events)\b|事件", re.IGNORECASE),
+        "匹配事件查询关键词",
+    ),
+    (
+        "cmd",
+        "get_entity_info",
         re.compile(
             r"(?:查看|查询|获取|了解).{0,16}(?:实体|服务|应用|pod|节点|实例|资源|详情|信息)|(?:实体|服务|应用|pod|节点|实例|资源).{0,8}(?:详情|信息)",
             re.IGNORECASE,

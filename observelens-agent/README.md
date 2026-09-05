@@ -15,7 +15,8 @@ make run
 
 每个会话请求会按以下优先级识别意图：
 
-1. CMD：`/get_info`、`/get_metric`、`mock/demo` 等快捷命令与常用可观测数据查看请求。
+1. CMD：`/get_entity_info`、`/get_metric`、`/get_log`、`/get_tarce`、`/get_event`、
+   `/generate_incident_report` 等快捷命令与常用可观测数据查看请求。
 2. RCA：故障、告警、根因等根因分析请求。
 3. QA：文档咨询及其它通用问答请求。
 4. LLM 兜底：当前规则未命中时，调用已注入的 OpenAI 兼容客户端；仅当
@@ -29,9 +30,9 @@ make run
 Graph 运行参数统一存放在 `AgentState.default_config`。该配置包含指标查询窗口、采样间隔、查询数量、
 RCA 日志查询上限及意图 LLM 参数；其内置默认值，并在创建状态时由 `OBSERVELENS_AGENT_*` 配置覆盖。
 
-### `get_info` 实体详情查询
+### `get_entity_info` 实体详情查询
 
-当请求命中 `/get_info` 时，Agent 会从 Web 的 `@实体` 引用中提取 `entity_id`，并调用
+当请求命中 `/get_entity_info` 时，Agent 会从 Web 的 `@实体` 引用中提取 `entity_id`，并调用
 `GET {OBSERVELENS_AGENT_CATALOG_BASE_URL}/api/v1/workspaces/{workspace_id}/entities/{entity_id}`
 获取资源详情。其中 `workspace_id` 由 `OBSERVELENS_AGENT_CATALOG_WORKSPACE_ID` 配置，默认
 `ws000003`。未引用实体、Catalog 不可用或实体不存在时，Agent 会返回可读的错误提示而不中断

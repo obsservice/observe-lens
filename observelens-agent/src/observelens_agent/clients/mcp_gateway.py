@@ -2,7 +2,7 @@ from typing import Any, cast
 
 
 class MCPGatewayClientError(Exception):
-    """Raised when the observability MCP Gateway cannot execute a metric query."""
+    """Raised when the observability MCP Gateway cannot execute a query."""
 
 
 class MCPGatewayClient:
@@ -24,6 +24,31 @@ class MCPGatewayClient:
             "loki_query_logs",
             {"query": query, "time_range": {"start": start, "end": end}, "limit": limit},
             "Observability MCP Gateway 日志查询失败",
+        )
+
+    async def get_trace(self, trace_id: str) -> dict[str, Any]:
+        return await self._call_tool(
+            "trace_get_by_id",
+            {"trace_id": trace_id},
+            "Observability MCP Gateway 链路追踪查询失败",
+        )
+
+    async def get_events(
+        self,
+        cluster: str,
+        namespace: str | None = None,
+        field_selector: str | None = None,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        arguments: dict[str, object] = {"cluster": cluster, "limit": limit}
+        if namespace:
+            arguments["namespace"] = namespace
+        if field_selector:
+            arguments["field_selector"] = field_selector
+        return await self._call_tool(
+            "k8s_get_events",
+            arguments,
+            "Observability MCP Gateway 事件查询失败",
         )
 
     async def _call_tool(

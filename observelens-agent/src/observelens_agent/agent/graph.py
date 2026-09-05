@@ -11,7 +11,7 @@ from observelens_agent.agent.nodes.get_info_node import CatalogEntityClient
 from observelens_agent.agent.nodes.get_metric_node import MetricCatalogClient, MetricGatewayClient
 from observelens_agent.agent.nodes.intent_node import create_intent_node
 from observelens_agent.agent.state.state import AgentState
-from observelens_agent.agent.subgraphs.cmd_graph import build_cmd_subgraph
+from observelens_agent.agent.subgraphs.cmd_graph import CommandGatewayClient, build_cmd_subgraph
 from observelens_agent.agent.subgraphs.qa_graph import build_qa_subgraph
 from observelens_agent.agent.subgraphs.rca_graph import build_rca_subgraph
 
@@ -30,7 +30,10 @@ def build_agent_graph(
 
     graph.add_node("intent", cast(Any, create_intent_node()))
 
-    cmd_subgraph = build_cmd_subgraph(catalog_client, gateway_client)
+    cmd_subgraph = build_cmd_subgraph(
+        catalog_client,
+        cast(CommandGatewayClient | None, gateway_client),
+    )
     graph.add_node("cmd", cast(Any, cmd_subgraph))
 
     rca_subgraph = build_rca_subgraph(

@@ -33,7 +33,7 @@ def create_get_info_node(catalog_client: CatalogEntityClient | None) -> GetInfoN
     async def get_info_node(state: AgentState) -> AgentState:
         entity_id = extract_entity_id(state.msg)
         if entity_id is None:
-            state.msg = "请先使用 @ 引用目标实体，再执行 /get_info。"
+            state.msg = "请先使用 @ 引用目标实体，再执行 /get_entity_info。"
             return state
         if catalog_client is None:
             state.msg = "Observability Data Catalog 未配置，暂时无法获取资源详情。"

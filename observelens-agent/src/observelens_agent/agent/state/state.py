@@ -20,6 +20,9 @@ class AgentState(BaseModel):
     rag_contexts: list[dict[str, Any]] = Field(default_factory=list)
     entity_details: dict[str, Any] | None = None
     metric_results: list[dict[str, Any]] = Field(default_factory=list)
+    log_results: dict[str, Any] | None = None
+    trace_result: dict[str, Any] | None = None
+    event_results: dict[str, Any] | None = None
     incident_report: dict[str, Any] | None = None
     run_failure_message: str | None = None
     intent_type: IntentType = "qa"

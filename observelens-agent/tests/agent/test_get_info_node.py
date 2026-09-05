@@ -24,14 +24,14 @@ class FakeCatalogClient:
 def test_extract_entity_id_from_web_reference() -> None:
     assert (
         extract_entity_id(
-            "/get_info(查看实体详情) @payment [Service/default; entity_id=entity-123]"
+            "/get_entity_info(查看实体详情) @payment [Service/default; entity_id=entity-123]"
         )
         == "entity-123"
     )
 
 
 def test_extract_entity_id_supports_catalog_qualified_id() -> None:
-    assert extract_entity_id("/get_info [entity_id=k8s.cluster:md6s8j7x]") == (
+    assert extract_entity_id("/get_entity_info [entity_id=k8s.cluster:md6s8j7x]") == (
         "k8s.cluster:md6s8j7x"
     )
 
@@ -40,7 +40,7 @@ def test_extract_entity_id_supports_catalog_qualified_id() -> None:
 async def test_get_info_node_queries_catalog_and_sets_entity_details() -> None:
     entity = {"id": "entity-123", "name": "payment-service", "status": "HEALTHY"}
     catalog = FakeCatalogClient(entity=entity)
-    state = AgentState(msg="/get_info @payment [entity_id=entity-123]")
+    state = AgentState(msg="/get_entity_info @payment [entity_id=entity-123]")
 
     result = await create_get_info_node(catalog)(state)
 
@@ -53,27 +53,29 @@ async def test_get_info_node_queries_catalog_and_sets_entity_details() -> None:
 async def test_get_info_node_requests_entity_reference_when_missing() -> None:
     catalog = FakeCatalogClient()
 
-    result = await create_get_info_node(catalog)(AgentState(msg="/get_info payment-service"))
+    result = await create_get_info_node(catalog)(AgentState(msg="/get_entity_info payment-service"))
 
     assert catalog.requested_ids == []
-    assert result.msg == "请先使用 @ 引用目标实体，再执行 /get_info。"
+    assert result.msg == "请先使用 @ 引用目标实体，再执行 /get_entity_info。"
 
 
 @pytest.mark.asyncio
 async def test_get_info_node_returns_catalog_error_to_user() -> None:
     catalog = FakeCatalogClient(error=CatalogClientError("未找到指定实体"))
 
-    result = await create_get_info_node(catalog)(AgentState(msg="/get_info [entity_id=missing]"))
+    result = await create_get_info_node(catalog)(
+        AgentState(msg="/get_entity_info [entity_id=missing]")
+    )
 
     assert result.msg == "获取资源详情失败：未找到指定实体"
 
 
 @pytest.mark.asyncio
-async def test_graph_routes_get_info_to_catalog_node() -> None:
+async def test_graph_routes_get_entity_info_to_catalog_node() -> None:
     catalog = FakeCatalogClient(entity={"id": "entity-123", "name": "payment-service"})
     graph = build_agent_graph(None, catalog, None).compile()
 
-    result = await graph.ainvoke({"msg": "/get_info [entity_id=entity-123]"})
+    result = await graph.ainvoke({"msg": "/get_entity_info [entity_id=entity-123]"})
 
     assert catalog.requested_ids == ["entity-123"]
     assert result["intent_type"] == "cmd"

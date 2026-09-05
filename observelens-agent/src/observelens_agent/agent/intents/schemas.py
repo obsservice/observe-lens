@@ -4,7 +4,15 @@ from pydantic import BaseModel, Field
 
 IntentType = Literal["cmd", "rca", "qa"]
 IntentSource = Literal["command", "rule", "llm", "fallback"]
-ShortCommand = Literal["mock", "get_info", "get_metric", "analysis_incident"]
+ShortCommand = Literal[
+    "get_entity_info",
+    "get_metric",
+    "get_log",
+    "get_tarce",
+    "get_event",
+    "generate_incident_report",
+    "analysis_incident",
+]
 LLMIntentType = IntentType
 
 

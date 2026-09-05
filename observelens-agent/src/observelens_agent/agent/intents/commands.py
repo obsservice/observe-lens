@@ -4,12 +4,16 @@ from typing import cast
 from observelens_agent.agent.intents.schemas import IntentType, ShortCommand
 
 _SHORT_COMMAND_INTENTS: dict[ShortCommand, IntentType] = {
-    "get_info": "cmd",
+    "get_entity_info": "cmd",
     "get_metric": "cmd",
+    "get_log": "cmd",
+    "get_tarce": "cmd",
+    "get_event": "cmd",
+    "generate_incident_report": "cmd",
     "analysis_incident": "rca",
 }
 _SHORT_COMMAND_PATTERN = re.compile(
-    r"^\s*/(?P<short_cmd>get_info|get_metric|analysis_incident)(?=\s|\(|$)",
+    r"^\s*/(?P<short_cmd>get_entity_info|get_metric|get_log|get_tarce|get_event|generate_incident_report|analysis_incident)(?=\s|\(|$)",
     re.IGNORECASE,
 )
 
