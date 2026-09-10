@@ -1952,7 +1952,11 @@ function InspectionTable({
               className="grid size-8 place-items-center rounded-md text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={isDisabled}
               onClick={() => onToggleEnabled(row)}
-              title={row.status === 'ENABLED' ? 'Disable inspection' : 'Enable inspection'}
+              title={
+                row.status === 'ENABLED'
+                  ? 'Disable inspection'
+                  : 'Enable inspection'
+              }
               type="button"
             >
               {row.status === 'ENABLED' ? (
@@ -3543,8 +3547,12 @@ export function InspectionsPage(): ReactNode {
           !inspectionsQuery.isError &&
           inspectionRows.length > 0 ? (
             <InspectionTable
-              deletingId={deleteMutation.isPending ? deleteMutation.variables : null}
-              executingId={executeMutation.isPending ? executeMutation.variables : null}
+              deletingId={
+                deleteMutation.isPending ? deleteMutation.variables : null
+              }
+              executingId={
+                executeMutation.isPending ? executeMutation.variables : null
+              }
               onDelete={handleDelete}
               onExecute={handleExecute}
               onToggleEnabled={handleToggleEnabled}
@@ -3685,9 +3693,9 @@ export function EntityTopologyPage(): ReactNode {
   const [appliedFilters, setAppliedFilters] = useState({ query: '', type: '' });
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [direction, setDirection] = useState<'both' | 'downstream' | 'upstream'>(
-    'both',
-  );
+  const [direction, setDirection] = useState<
+    'both' | 'downstream' | 'upstream'
+  >('both');
   const [depth, setDepth] = useState(3);
 
   const entityTypesQuery = useQuery({
@@ -3810,17 +3818,22 @@ export function EntityTopologyPage(): ReactNode {
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             {candidateEntitiesQuery.isPending ? (
-              <span className="text-sm text-slate-500">Loading entities...</span>
+              <span className="text-sm text-slate-500">
+                Loading entities...
+              </span>
             ) : null}
             {candidateEntitiesQuery.isError ? (
               <span className="text-sm text-red-600">
-                {candidateEntitiesQuery.error.message || 'Failed to load entities.'}
+                {candidateEntitiesQuery.error.message ||
+                  'Failed to load entities.'}
               </span>
             ) : null}
             {!candidateEntitiesQuery.isPending &&
             !candidateEntitiesQuery.isError &&
             (candidateEntitiesQuery.data?.items.length ?? 0) === 0 ? (
-              <span className="text-sm text-slate-500">No matching entities.</span>
+              <span className="text-sm text-slate-500">
+                No matching entities.
+              </span>
             ) : null}
             {(candidateEntitiesQuery.data?.items ?? []).map((entity) => (
               <button
@@ -3847,7 +3860,11 @@ export function EntityTopologyPage(): ReactNode {
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,#e2e8f0_1px,transparent_0)] [background-size:18px_18px]" />
             <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur">
               <div className="flex items-center gap-2 text-sm text-slate-700">
-                <GitBranch aria-hidden="true" className="text-blue-600" size={17} />
+                <GitBranch
+                  aria-hidden="true"
+                  className="text-blue-600"
+                  size={17}
+                />
                 <span>{topology?.nodes.length ?? 0} nodes</span>
                 <span className="text-slate-300">•</span>
                 <span>{topology?.edges.length ?? 0} relationships</span>
@@ -3944,7 +3961,9 @@ export function EntityTopologyPage(): ReactNode {
                       className={cn(
                         'absolute z-10 w-40 -translate-x-1/2 -translate-y-1/2 rounded-md border bg-white px-3 py-2 text-left shadow-sm transition hover:border-blue-300 hover:shadow-md',
                         isRoot && 'border-blue-500 ring-2 ring-blue-100',
-                        isSelected && !isRoot && 'border-violet-400 ring-2 ring-violet-100',
+                        isSelected &&
+                          !isRoot &&
+                          'border-violet-400 ring-2 ring-violet-100',
                       )}
                       key={node.id}
                       onClick={() => setSelectedNodeId(node.id)}
@@ -3952,7 +3971,11 @@ export function EntityTopologyPage(): ReactNode {
                       type="button"
                     >
                       <span className="flex items-center gap-2">
-                        <Box aria-hidden="true" className="shrink-0 text-blue-600" size={16} />
+                        <Box
+                          aria-hidden="true"
+                          className="shrink-0 text-blue-600"
+                          size={16}
+                        />
                         <span className="min-w-0">
                           <span className="block truncate text-sm font-semibold text-slate-950">
                             {node.name}
@@ -3970,7 +3993,7 @@ export function EntityTopologyPage(): ReactNode {
           </section>
           <aside className="overflow-hidden rounded-md border border-slate-200 bg-white">
             {!selectedNode ? (
-              <div className="flex min-h-full min-h-[240px] items-center justify-center px-6 text-center text-sm text-slate-500">
+              <div className="flex min-h-[240px] min-h-full items-center justify-center px-6 text-center text-sm text-slate-500">
                 Select a topology node to view its live entity details.
               </div>
             ) : (
@@ -4028,17 +4051,21 @@ export function EntityTopologyPage(): ReactNode {
                 <section className="border-t border-slate-200 pt-5">
                   <h3 className="font-semibold text-slate-950">Labels</h3>
                   {Object.keys(selectedNode.labels).length === 0 ? (
-                    <p className="mt-3 text-sm text-slate-500">No labels returned.</p>
+                    <p className="mt-3 text-sm text-slate-500">
+                      No labels returned.
+                    </p>
                   ) : (
                     <div className="mt-3 flex flex-wrap gap-2">
-                      {Object.entries(selectedNode.labels).map(([key, value]) => (
-                        <span
-                          className="max-w-full break-all rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-700"
-                          key={key}
-                        >
-                          {key}: {value}
-                        </span>
-                      ))}
+                      {Object.entries(selectedNode.labels).map(
+                        ([key, value]) => (
+                          <span
+                            className="max-w-full break-all rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-700"
+                            key={key}
+                          >
+                            {key}: {value}
+                          </span>
+                        ),
+                      )}
                     </div>
                   )}
                 </section>
@@ -6678,7 +6705,11 @@ export function ChatObservationsPage(): ReactNode {
 
   const messagesQuery = useQuery({
     enabled: selectedConversationId !== null,
-    queryFn: () => listMessages(selectedConversationId as number, { page: 1, page_size: 100 }),
+    queryFn: () =>
+      listMessages(selectedConversationId as number, {
+        page: 1,
+        page_size: 100,
+      }),
     queryKey: messageQueryKeys.list(selectedConversationId ?? 0, {
       page: 1,
       page_size: 100,
@@ -6713,8 +6744,12 @@ export function ChatObservationsPage(): ReactNode {
               <span className="sr-only">Conversation</span>
               <select
                 className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-                disabled={conversationsQuery.isPending || conversationsQuery.isError}
-                onChange={(event) => setSelectedConversationId(Number(event.target.value))}
+                disabled={
+                  conversationsQuery.isPending || conversationsQuery.isError
+                }
+                onChange={(event) =>
+                  setSelectedConversationId(Number(event.target.value))
+                }
                 value={selectedConversationId ?? ''}
               >
                 <option value="">Select a conversation</option>
@@ -6729,7 +6764,9 @@ export function ChatObservationsPage(): ReactNode {
             </label>
             <button
               className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-4 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={messagesQuery.isFetching || selectedConversationId === null}
+              disabled={
+                messagesQuery.isFetching || selectedConversationId === null
+              }
               onClick={() => {
                 void messagesQuery.refetch();
               }}
@@ -6741,7 +6778,8 @@ export function ChatObservationsPage(): ReactNode {
           </div>
           {conversationsQuery.isError ? (
             <p className="mt-3 text-sm text-red-600">
-              {conversationsQuery.error.message || 'Failed to load conversations.'}
+              {conversationsQuery.error.message ||
+                'Failed to load conversations.'}
             </p>
           ) : null}
         </section>
@@ -6749,15 +6787,20 @@ export function ChatObservationsPage(): ReactNode {
           <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
             <div className="flex min-h-12 items-center justify-between gap-3 border-b border-slate-200 px-4">
               <div>
-                <h2 className="text-sm font-semibold">Investigation Timeline</h2>
+                <h2 className="text-sm font-semibold">
+                  Investigation Timeline
+                </h2>
                 {selectedConversation ? (
                   <p className="mt-0.5 text-xs text-slate-500">
-                    {selectedConversation.title || `Conversation #${selectedConversation.id}`}
+                    {selectedConversation.title ||
+                      `Conversation #${selectedConversation.id}`}
                   </p>
                 ) : null}
               </div>
               {selectedConversation ? (
-                <StatusBadge tone="blue">{selectedConversation.status}</StatusBadge>
+                <StatusBadge tone="blue">
+                  {selectedConversation.status}
+                </StatusBadge>
               ) : null}
             </div>
             {selectedConversationId === null ? (

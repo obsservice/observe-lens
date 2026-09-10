@@ -175,37 +175,47 @@ class ConversationService:
                         assistant_content += event_content
         except httpx.TimeoutException:
             logger.warning("agent_run_timed_out", conversation_id=conversation_id, run_id=run_id)
-            yield self._run_failed_event(
+            failed_event = self._run_failed_event(
                 conversation_id, run_id, "AGENT_TIMEOUT", "Agent Runtime request timed out"
             )
+            self._append_event_payload(investigation_events, failed_event)
+            yield failed_event
         except httpx.RequestError:
             logger.warning(
                 "agent_runtime_unavailable", conversation_id=conversation_id, run_id=run_id
             )
-            yield self._run_failed_event(
+            failed_event = self._run_failed_event(
                 conversation_id,
                 run_id,
                 "AGENT_UNAVAILABLE",
                 "Agent Runtime is unavailable. Verify its URL and status.",
             )
+            self._append_event_payload(investigation_events, failed_event)
+            yield failed_event
         except httpx.HTTPStatusError:
             logger.warning(
                 "agent_runtime_request_failed", conversation_id=conversation_id, run_id=run_id
             )
-            yield self._run_failed_event(
+            failed_event = self._run_failed_event(
                 conversation_id,
                 run_id,
                 "AGENT_REQUEST_FAILED",
                 "Agent Runtime rejected the investigation request.",
             )
+            self._append_event_payload(investigation_events, failed_event)
+            yield failed_event
         finally:
-            if tenant_id is not None and assistant_content.strip():
+            archived_content = assistant_content.strip() or self._fallback_assistant_content(
+                investigation_events
+            )
+            if tenant_id is not None and archived_content:
                 await self._persist_assistant_message(
                     tenant_id,
                     conversation_id,
                     run_id,
-                    assistant_content,
+                    archived_content,
                     investigation_events,
+                    status=self._assistant_message_status(investigation_events),
                 )
 
     @staticmethod
@@ -218,6 +228,14 @@ class ConversationService:
                     return None
                 return payload if isinstance(payload, dict) else None
         return None
+
+    @classmethod
+    def _append_event_payload(
+        cls, investigation_events: list[dict[str, object]], event: str
+    ) -> None:
+        payload = cls._parse_event(event)
+        if payload is not None:
+            investigation_events.append(payload)
 
     @staticmethod
     def _extract_output(
@@ -240,6 +258,7 @@ class ConversationService:
         run_id: int,
         content: str,
         investigation_events: list[dict[str, object]],
+        status: str = "COMPLETED",
     ) -> None:
         message = MessageModel(
             id=new_id(),
@@ -250,10 +269,30 @@ class ConversationService:
             sender_role="ASSISTANT",
             content=content,
             message_metadata={"events": investigation_events},
-            status="COMPLETED",
+            status=status,
         )
         self._repository.add(message)
         await self._session.flush()
+
+    @staticmethod
+    def _fallback_assistant_content(investigation_events: list[dict[str, object]]) -> str:
+        for event in reversed(investigation_events):
+            if event.get("type") != "run.failed":
+                continue
+            data = event.get("data")
+            if isinstance(data, dict):
+                message = data.get("message")
+                if isinstance(message, str) and message:
+                    return message
+        return ""
+
+    @staticmethod
+    def _assistant_message_status(investigation_events: list[dict[str, object]]) -> str:
+        return (
+            "FAILED"
+            if any(event.get("type") == "run.failed" for event in investigation_events)
+            else "COMPLETED"
+        )
 
     @staticmethod
     def _run_failed_event(conversation_id: int, run_id: int, code: str, message: str) -> str:

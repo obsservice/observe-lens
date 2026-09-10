@@ -88,7 +88,6 @@ export async function listModelStatuses(): Promise<Option[]> {
   return await apiRequest<Option[]>('/models/statuses');
 }
 
-
 export interface NotificationConfig {
   id: number;
   name: string;

@@ -17,7 +17,11 @@ import {
   type Message,
 } from '@/lib/api/conversations';
 import { ApiError } from '@/lib/api/client';
-import { entityQueryKeys, searchEntities, type Entity } from '@/lib/api/entities';
+import {
+  entityQueryKeys,
+  searchEntities,
+  type Entity,
+} from '@/lib/api/entities';
 import { cn } from '@/lib/utils';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -38,6 +42,8 @@ import {
   Slash,
   Share2,
   RotateCcw,
+  ThumbsDown,
+  ThumbsUp,
 } from 'lucide-react';
 import {
   type FormEvent,
@@ -84,8 +90,39 @@ function formatMessageTime(value: string): string {
   });
 }
 
+function formatElapsedDuration(milliseconds: number): string {
+  const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${minutes}m ${seconds}s`;
+}
+
 function isUserMessage(role: string): boolean {
   return role.toUpperCase() === 'USER';
+}
+
+interface ChatDisplayMessage extends Message {
+  clientStatus?: 'sending' | 'failed';
+}
+
+function isSameRecentlyPersistedUserMessage(
+  message: Message,
+  pendingMessage: ChatDisplayMessage,
+): boolean {
+  if (
+    !isUserMessage(message.role) ||
+    message.content !== pendingMessage.content
+  ) {
+    return false;
+  }
+
+  const persistedTime = new Date(message.created_at).getTime();
+  const pendingTime = new Date(pendingMessage.created_at).getTime();
+
+  return (
+    Number.isFinite(persistedTime) && persistedTime >= pendingTime - 10_000
+  );
 }
 
 function getCommandQuery(content: string): string | null {
@@ -94,7 +131,9 @@ function getCommandQuery(content: string): string | null {
   return match?.[1] ?? null;
 }
 
-function getEntityReference(content: string): { query: string; start: number } | null {
+function getEntityReference(
+  content: string,
+): { query: string; start: number } | null {
   const match = content.match(/(^|\s)@([^\s@]*)$/);
 
   if (!match) {
@@ -109,13 +148,20 @@ function getEntityReference(content: string): { query: string; start: number } |
 
 function formatEntityReference(entity: Entity): string {
   const location =
-    entity.namespace === '-' ? entity.type : `${entity.type}/${entity.namespace}`;
+    entity.namespace === '-'
+      ? entity.type
+      : `${entity.type}/${entity.namespace}`;
 
   return `@${entity.name} [${location}; entity_id=${entity.id}]`;
 }
 
-function ChatMessageBubble({ message }: { message: Message }): ReactNode {
+function ChatMessageBubble({
+  message,
+}: {
+  message: ChatDisplayMessage;
+}): ReactNode {
   const fromUser = isUserMessage(message.role);
+  const statusText = message.clientStatus === 'failed' ? '发送失败' : '已回答';
 
   return (
     <div
@@ -124,26 +170,32 @@ function ChatMessageBubble({ message }: { message: Message }): ReactNode {
         fromUser ? 'justify-end' : 'justify-start',
       )}
     >
-      <div
-        className={cn(
-          'max-w-[680px] rounded-lg px-4 py-3 text-sm leading-6',
-          fromUser
-            ? 'bg-blue-600 text-white'
-            : 'border border-slate-200 bg-white text-slate-800',
-        )}
-      >
-        <p className="whitespace-pre-wrap break-words">{message.content}</p>
+      <div className={cn('max-w-[680px]', fromUser && 'order-1')}>
+        <div
+          className={cn(
+            'rounded-lg px-4 py-3 text-sm leading-6',
+            fromUser
+              ? 'bg-blue-600 text-white'
+              : 'border border-slate-200 bg-white text-slate-800',
+          )}
+        >
+          <p className="whitespace-pre-wrap break-words">{message.content}</p>
+        </div>
         <p
           className={cn(
-            'mt-1.5 text-xs',
-            fromUser ? 'text-blue-100' : 'text-slate-400',
+            'mt-1.5 text-xs text-slate-400',
+            fromUser ? 'text-right' : 'text-left',
           )}
         >
           {formatMessageTime(message.created_at)}
+          {!fromUser ? <span className="ml-2">{statusText}</span> : null}
+          {fromUser && message.clientStatus === 'failed' ? (
+            <span className="ml-2 text-red-500">{statusText}</span>
+          ) : null}
         </p>
       </div>
       {fromUser ? (
-        <div className="grid size-9 shrink-0 place-items-center rounded-full bg-slate-700 text-sm font-semibold text-white">
+        <div className="order-2 grid size-9 shrink-0 place-items-center rounded-full bg-slate-700 text-sm font-semibold text-white">
           U
         </div>
       ) : null}
@@ -320,6 +372,20 @@ function restoreInvestigation(events: AESPEvent[]): InvestigationState {
   return events.reduce(applyEventToInvestigation, emptyInvestigation);
 }
 
+function getInvestigationElapsedLabel(events: AESPEvent[] = []): string {
+  const timestamps = events
+    .map((event) => new Date(event.timestamp).getTime())
+    .filter(Number.isFinite);
+
+  if (timestamps.length < 2) {
+    return '';
+  }
+
+  return formatElapsedDuration(
+    Math.max(...timestamps) - Math.min(...timestamps),
+  );
+}
+
 function stepStatusTone(
   status: InvestigationStep['status'],
 ): 'blue' | 'emerald' | 'red' | 'slate' {
@@ -370,35 +436,77 @@ function ObservationContent({
   content: Record<string, unknown>;
   type: string;
 }): ReactNode {
-  if (type === 'table' && Array.isArray(content['columns']) && Array.isArray(content['rows'])) {
+  if (
+    type === 'table' &&
+    Array.isArray(content['columns']) &&
+    Array.isArray(content['rows'])
+  ) {
     const columns = content['columns'] as unknown[];
     const rows = content['rows'] as unknown[][];
 
     return (
       <div className="mt-3 overflow-hidden rounded border border-slate-200">
         <table className="w-full text-left text-[11px]">
-          <thead className="bg-slate-50 text-slate-500"><tr>{columns.map((column) => <th className="px-2 py-1.5 font-medium" key={String(column)}>{String(column)}</th>)}</tr></thead>
-          <tbody className="divide-y divide-slate-100">{rows.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => <td className="px-2 py-1.5 text-slate-700" key={cellIndex}>{String(cell)}</td>)}</tr>)}</tbody>
+          <thead className="bg-slate-50 text-slate-500">
+            <tr>
+              {columns.map((column) => (
+                <th className="px-2 py-1.5 font-medium" key={String(column)}>
+                  {String(column)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {rows.map((row, rowIndex) => (
+              <tr key={rowIndex}>
+                {row.map((cell, cellIndex) => (
+                  <td className="px-2 py-1.5 text-slate-700" key={cellIndex}>
+                    {String(cell)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
         </table>
       </div>
     );
   }
 
   if (type === 'log' && Array.isArray(content['lines'])) {
-    return <pre className="mt-3 overflow-x-auto rounded bg-slate-950 px-3 py-2 text-[11px] leading-5 text-slate-200">{(content['lines'] as unknown[]).map(String).join('\n')}</pre>;
+    return (
+      <pre className="mt-3 overflow-x-auto rounded bg-slate-950 px-3 py-2 text-[11px] leading-5 text-slate-200">
+        {(content['lines'] as unknown[]).map(String).join('\n')}
+      </pre>
+    );
   }
 
-  if (type === 'chart' && Array.isArray(content['x_axis']) && Array.isArray(content['series'])) {
+  if (
+    type === 'chart' &&
+    Array.isArray(content['x_axis']) &&
+    Array.isArray(content['series'])
+  ) {
     const series = content['series'] as Array<Record<string, unknown>>;
     return (
       <div className="mt-3 rounded border border-slate-200 bg-slate-50 p-3">
         <div className="flex h-16 items-end gap-1">
           {(content['x_axis'] as unknown[]).map((_, index) => {
-            const value = Number((series[0]?.['values'] as unknown[] | undefined)?.[index] ?? 0);
-            return <div className="flex-1 rounded-t bg-blue-400" key={index} style={{ height: `${Math.max(10, Math.min(100, value))}%` }} />;
+            const value = Number(
+              (series[0]?.['values'] as unknown[] | undefined)?.[index] ?? 0,
+            );
+            return (
+              <div
+                className="flex-1 rounded-t bg-blue-400"
+                key={index}
+                style={{ height: `${Math.max(10, Math.min(100, value))}%` }}
+              />
+            );
           })}
         </div>
-        <div className="mt-2 flex justify-between text-[10px] text-slate-400">{(content['x_axis'] as unknown[]).map((label) => <span key={String(label)}>{String(label)}</span>)}</div>
+        <div className="mt-2 flex justify-between text-[10px] text-slate-400">
+          {(content['x_axis'] as unknown[]).map((label) => (
+            <span key={String(label)}>{String(label)}</span>
+          ))}
+        </div>
       </div>
     );
   }
@@ -407,9 +515,13 @@ function ObservationContent({
 }
 
 function InvestigationPanel({
+  completedAt,
+  elapsedLabel,
   investigation,
   isStreaming,
 }: {
+  completedAt?: string;
+  elapsedLabel?: string;
   investigation: InvestigationState;
   isStreaming: boolean;
 }): ReactNode {
@@ -429,6 +541,26 @@ function InvestigationPanel({
   return (
     <div className="flex items-start">
       <div className="min-w-0 flex-1 space-y-3">
+        <div className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-400">
+          {isStreaming ? (
+            <Loader2 aria-hidden="true" className="animate-spin" size={14} />
+          ) : null}
+          <span>
+            {isStreaming
+              ? elapsedLabel
+                ? `已处理 ${elapsedLabel}`
+                : '正在处理'
+              : elapsedLabel
+                ? `已处理 ${elapsedLabel}`
+                : '已处理'}
+          </span>
+          <ChevronDown
+            aria-hidden="true"
+            className="-rotate-90 text-slate-400"
+            size={16}
+          />
+        </div>
+
         {investigation.analysis ? (
           <section className="rounded-lg border border-slate-200 bg-white shadow-sm shadow-slate-100">
             <div className="flex h-11 items-center gap-2 px-4">
@@ -447,90 +579,112 @@ function InvestigationPanel({
         {investigation.steps.length > 0 ? (
           <section className="rounded-lg border border-slate-200 bg-white shadow-sm shadow-slate-100">
             <div className="flex h-11 items-center gap-2 px-4">
-              <span className="grid size-5 place-items-center rounded border border-slate-400 text-[11px] text-slate-600">⌕</span>
+              <span className="grid size-5 place-items-center rounded border border-slate-400 text-[11px] text-slate-600">
+                ⌕
+              </span>
               <h3 className="text-sm font-semibold text-slate-900">
                 Investigation 调查过程
               </h3>
               <ChevronUp className="ml-auto text-slate-500" size={15} />
             </div>
             <div className="border-t border-slate-200 px-3 py-3">
-              <p className="mb-3 px-1 text-xs font-semibold text-slate-700">执行计划</p>
+              <p className="mb-3 px-1 text-xs font-semibold text-slate-700">
+                执行计划
+              </p>
               <div className="mb-3 flex items-center gap-1 overflow-x-auto px-1 pb-1">
                 {investigation.steps.map((step, index) => (
-                  <div className="flex min-w-[120px] flex-1 items-center gap-1" key={`plan-${step.stepId || index}`}>
-                    <span className={cn(
-                      'grid size-5 shrink-0 place-items-center rounded-full border text-[11px] font-semibold',
-                      step.status === 'completed' ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-blue-300 text-blue-600',
-                    )}>{index + 1}</span>
-                    <span className="truncate text-xs text-slate-600">{step.title}</span>
-                    {index < investigation.steps.length - 1 ? <span className="mx-1 h-px flex-1 bg-slate-300" /> : null}
+                  <div
+                    className="flex min-w-[120px] flex-1 items-center gap-1"
+                    key={`plan-${step.stepId || index}`}
+                  >
+                    <span
+                      className={cn(
+                        'grid size-5 shrink-0 place-items-center rounded-full border text-[11px] font-semibold',
+                        step.status === 'completed'
+                          ? 'border-blue-500 bg-blue-50 text-blue-600'
+                          : 'border-blue-300 text-blue-600',
+                      )}
+                    >
+                      {index + 1}
+                    </span>
+                    <span className="truncate text-xs text-slate-600">
+                      {step.title}
+                    </span>
+                    {index < investigation.steps.length - 1 ? (
+                      <span className="mx-1 h-px flex-1 bg-slate-300" />
+                    ) : null}
                   </div>
                 ))}
               </div>
-            <div className="divide-y divide-slate-200 rounded-md border border-slate-200">
-              {investigation.steps.map((step, index) => (
-                <button
-                  className="grid w-full grid-cols-[1fr_auto] items-center gap-4 px-3 py-2.5 text-left transition hover:bg-slate-50"
-                  key={step.stepId || index}
-                  onClick={() => {
-                    const stepKey = step.stepId || String(index);
-                    setExpandedSteps((current) => {
-                      const next = new Set(current);
-                      if (next.has(stepKey)) {
-                        next.delete(stepKey);
-                      } else {
-                        next.add(stepKey);
-                      }
-                      return next;
-                    });
-                  }}
-                  type="button"
-                >
-                  <div className="flex min-w-0 items-start gap-3">
-                    <span
-                      className={cn(
-                        'mt-0.5 grid size-5 shrink-0 place-items-center rounded-full text-xs font-semibold text-white',
-                        step.status === 'completed' && 'bg-emerald-500',
-                        step.status === 'running' && 'bg-blue-600',
-                        step.status === 'failed' && 'bg-red-500',
-                        step.status === 'pending' &&
-                          'bg-slate-300 text-slate-600',
-                      )}
-                    >
-                      {step.status === 'completed'
-                        ? '✓'
-                        : step.status === 'failed'
-                          ? '✕'
-                          : index + 1}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold text-slate-900">
-                        步骤 {index + 1}
-                        <span className="ml-3">{step.title}</span>
-                      </p>
-                      {step.summary ? (
-                        <p className="mt-1 truncate text-xs text-slate-600">
-                          {step.summary}
+              <div className="divide-y divide-slate-200 rounded-md border border-slate-200">
+                {investigation.steps.map((step, index) => (
+                  <button
+                    className="grid w-full grid-cols-[1fr_auto] items-center gap-4 px-3 py-2.5 text-left transition hover:bg-slate-50"
+                    key={step.stepId || index}
+                    onClick={() => {
+                      const stepKey = step.stepId || String(index);
+                      setExpandedSteps((current) => {
+                        const next = new Set(current);
+                        if (next.has(stepKey)) {
+                          next.delete(stepKey);
+                        } else {
+                          next.add(stepKey);
+                        }
+                        return next;
+                      });
+                    }}
+                    type="button"
+                  >
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span
+                        className={cn(
+                          'mt-0.5 grid size-5 shrink-0 place-items-center rounded-full text-xs font-semibold text-white',
+                          step.status === 'completed' && 'bg-emerald-500',
+                          step.status === 'running' && 'bg-blue-600',
+                          step.status === 'failed' && 'bg-red-500',
+                          step.status === 'pending' &&
+                            'bg-slate-300 text-slate-600',
+                        )}
+                      >
+                        {step.status === 'completed'
+                          ? '✓'
+                          : step.status === 'failed'
+                            ? '✕'
+                            : index + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-slate-900">
+                          步骤 {index + 1}
+                          <span className="ml-3">{step.title}</span>
                         </p>
-                      ) : null}
+                        {step.summary ? (
+                          <p className="mt-1 truncate text-xs text-slate-600">
+                            {step.summary}
+                          </p>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <StatusBadge tone={stepStatusTone(step.status)}>{stepStatusLabel(step.status)}</StatusBadge>
+                    <div className="flex items-center gap-3">
+                      <StatusBadge tone={stepStatusTone(step.status)}>
+                        {stepStatusLabel(step.status)}
+                      </StatusBadge>
+                      {expandedSteps.has(step.stepId || String(index)) ? (
+                        <ChevronUp className="text-slate-400" size={14} />
+                      ) : (
+                        <ChevronDown className="text-slate-400" size={14} />
+                      )}
+                    </div>
                     {expandedSteps.has(step.stepId || String(index)) ? (
-                      <ChevronUp className="text-slate-400" size={14} />
-                    ) : (
-                      <ChevronDown className="text-slate-400" size={14} />
-                    )}
-                  </div>
-                  {expandedSteps.has(step.stepId || String(index)) ? (
-                    <div className="col-span-2 ml-8 border-t border-slate-100 pt-2 text-xs leading-5 text-slate-600">
-                      {step.summary || (step.status === 'pending' ? '等待上一步完成' : '暂无详细信息')}
-                    </div>
-                  ) : null}
-                </button>
-              ))}
-            </div>
+                      <div className="col-span-2 ml-8 border-t border-slate-100 pt-2 text-xs leading-5 text-slate-600">
+                        {step.summary ||
+                          (step.status === 'pending'
+                            ? '等待上一步完成'
+                            : '暂无详细信息')}
+                      </div>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
             </div>
           </section>
         ) : null}
@@ -558,7 +712,12 @@ function InvestigationPanel({
                   {obs.summary ? (
                     <p className="mt-1 text-xs text-slate-600">{obs.summary}</p>
                   ) : null}
-                  {obs.content ? <ObservationContent content={obs.content} type={obs.observationType} /> : null}
+                  {obs.content ? (
+                    <ObservationContent
+                      content={obs.content}
+                      type={obs.observationType}
+                    />
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -624,12 +783,27 @@ function InvestigationPanel({
           </section>
         ) : null}
 
-        {isStreaming &&
-        !investigation.analysis &&
-        investigation.steps.length === 0 ? (
-          <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
-            <Loader2 aria-hidden="true" className="animate-spin" size={14} />
-            Thinking…
+        {!isStreaming ? (
+          <div className="flex items-center gap-2 text-slate-400">
+            <button
+              aria-label="Like answer"
+              className="grid size-7 place-items-center rounded-md transition hover:bg-slate-100 hover:text-slate-700"
+              type="button"
+            >
+              <ThumbsUp aria-hidden="true" size={15} />
+            </button>
+            <button
+              aria-label="Dislike answer"
+              className="grid size-7 place-items-center rounded-md transition hover:bg-slate-100 hover:text-slate-700"
+              type="button"
+            >
+              <ThumbsDown aria-hidden="true" size={15} />
+            </button>
+            {completedAt ? (
+              <span className="ml-1 text-xs">
+                {formatMessageTime(completedAt)}
+              </span>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -638,34 +812,29 @@ function InvestigationPanel({
 }
 
 function ChatMessageList({
+  completedAt,
+  elapsedLabel,
   investigation,
   isStreaming,
   isLoading,
   messages,
 }: {
+  completedAt: string | null;
+  elapsedLabel: string;
   investigation: InvestigationState;
   isStreaming: boolean;
   isLoading: boolean;
-  messages: Message[];
+  messages: ChatDisplayMessage[];
 }): ReactNode {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const visibleMessages = useMemo(() => {
-    if (!investigation.output) {
-      return messages;
-    }
-
-    const latestAssistantIndex = messages.reduce(
-      (latestIndex, message, index) =>
-        isUserMessage(message.role) ? latestIndex : index,
-      -1,
-    );
-
-    if (latestAssistantIndex === -1) {
-      return messages;
-    }
-
-    return messages.filter((_, index) => index !== latestAssistantIndex);
-  }, [investigation.output, messages]);
+  const liveInvestigationVisible =
+    isStreaming ||
+    investigation.analysis !== null ||
+    investigation.steps.length > 0 ||
+    investigation.observations.length > 0 ||
+    investigation.findings.length > 0 ||
+    investigation.output !== '' ||
+    investigation.error !== null;
 
   useEffect(() => {
     const element = scrollRef.current;
@@ -686,7 +855,7 @@ function ChatMessageList({
             <Clock aria-hidden="true" className="animate-pulse" size={14} />
             Loading messages…
           </div>
-        ) : visibleMessages.length === 0 ? (
+        ) : messages.length === 0 && !liveInvestigationVisible ? (
           <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center">
             <p className="text-sm font-medium text-slate-600">
               No messages yet
@@ -696,18 +865,41 @@ function ChatMessageList({
             </p>
           </div>
         ) : (
-          visibleMessages.map((message) => (
-            <ChatMessageBubble key={message.id} message={message} />
-          ))
+          messages.map((message) => {
+            const historicalInvestigation = !isUserMessage(message.role)
+              ? restoreInvestigation(message.metadata?.events ?? [])
+              : null;
+            const hasHistoricalInvestigation =
+              historicalInvestigation !== null &&
+              (historicalInvestigation.analysis !== null ||
+                historicalInvestigation.steps.length > 0 ||
+                historicalInvestigation.observations.length > 0 ||
+                historicalInvestigation.findings.length > 0 ||
+                historicalInvestigation.output !== '' ||
+                historicalInvestigation.error !== null);
+
+            return (
+              <div key={message.id}>
+                {hasHistoricalInvestigation ? (
+                  <InvestigationPanel
+                    completedAt={message.created_at}
+                    elapsedLabel={getInvestigationElapsedLabel(
+                      message.metadata?.events ?? [],
+                    )}
+                    investigation={historicalInvestigation}
+                    isStreaming={false}
+                  />
+                ) : (
+                  <ChatMessageBubble message={message} />
+                )}
+              </div>
+            );
+          })
         )}
-        {isStreaming ||
-        investigation.analysis ||
-        investigation.steps.length > 0 ||
-        investigation.observations.length > 0 ||
-        investigation.findings.length > 0 ||
-        investigation.output ||
-        investigation.error ? (
+        {liveInvestigationVisible ? (
           <InvestigationPanel
+            completedAt={completedAt ?? undefined}
+            elapsedLabel={elapsedLabel}
             investigation={investigation}
             isStreaming={isStreaming}
           />
@@ -722,6 +914,7 @@ function ChatMessageInput({
   isStreaming,
   onSent,
   onStreamEvent,
+  onStreamError,
   onStreamStart,
   onStreamEnd,
 }: {
@@ -729,7 +922,8 @@ function ChatMessageInput({
   isStreaming: boolean;
   onSent: () => void;
   onStreamEvent: (event: AESPEvent) => void;
-  onStreamStart: () => void;
+  onStreamError: (message: string) => void;
+  onStreamStart: (content: string) => void;
   onStreamEnd: () => void;
 }): ReactNode {
   const [content, setContent] = useState('');
@@ -773,11 +967,17 @@ function ChatMessageInput({
 
     requestAnimationFrame(() => {
       textareaRef.current?.focus();
-      textareaRef.current?.setSelectionRange(nextContent.length, nextContent.length);
+      textareaRef.current?.setSelectionRange(
+        nextContent.length,
+        nextContent.length,
+      );
     });
   };
 
-  const handleCommandSelect = (command: { description: string; name: string }) => {
+  const handleCommandSelect = (command: {
+    description: string;
+    name: string;
+  }) => {
     const commandStart = content.search(/\S/);
     insertContent(
       commandStart === -1 ? 0 : commandStart,
@@ -801,7 +1001,7 @@ function ChatMessageInput({
 
     setContent('');
     setError(null);
-    onStreamStart();
+    onStreamStart(trimmed);
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -818,6 +1018,7 @@ function ChatMessageInput({
         onError: (err) => {
           abortRef.current = null;
           onStreamEnd();
+          onStreamError(err.message);
           setError(err.message);
         },
         onEvent: onStreamEvent,
@@ -847,7 +1048,9 @@ function ChatMessageInput({
         {commandQuery !== null ? (
           <div className="absolute bottom-full mb-2 w-full overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg shadow-slate-200/70">
             {commandsQuery.isLoading ? (
-              <p className="px-3 py-2 text-xs text-slate-500">加载常用命令中…</p>
+              <p className="px-3 py-2 text-xs text-slate-500">
+                加载常用命令中…
+              </p>
             ) : matchingCommands.length > 0 ? (
               matchingCommands.map((command) => (
                 <button
@@ -868,7 +1071,9 @@ function ChatMessageInput({
                 </button>
               ))
             ) : (
-              <p className="px-3 py-2 text-xs text-slate-500">未找到匹配的常用命令</p>
+              <p className="px-3 py-2 text-xs text-slate-500">
+                未找到匹配的常用命令
+              </p>
             )}
           </div>
         ) : null}
@@ -884,7 +1089,10 @@ function ChatMessageInput({
                   onClick={() => handleEntitySelect(entity)}
                   type="button"
                 >
-                  <AtSign className="mt-0.5 shrink-0 text-emerald-600" size={15} />
+                  <AtSign
+                    className="mt-0.5 shrink-0 text-emerald-600"
+                    size={15}
+                  />
                   <span>
                     <span className="block text-sm font-medium text-slate-800">
                       {entity.name}
@@ -896,7 +1104,9 @@ function ChatMessageInput({
                 </button>
               ))
             ) : (
-              <p className="px-3 py-2 text-xs text-slate-500">未找到匹配的实体</p>
+              <p className="px-3 py-2 text-xs text-slate-500">
+                未找到匹配的实体
+              </p>
             )}
           </div>
         ) : null}
@@ -904,37 +1114,39 @@ function ChatMessageInput({
           className="rounded-lg border border-blue-500 bg-white p-3 shadow-lg shadow-slate-200/60"
           onSubmit={handleSubmit}
         >
-        <textarea
-          className="max-h-40 w-full resize-none border-0 text-sm text-slate-800 outline-none placeholder:text-slate-400"
-          onChange={(event) => setContent(event.target.value)}
-          placeholder="Ask anything about your observability data..."
-          ref={textareaRef}
-          rows={1}
-          value={content}
-        />
-        {error ? <p className="mt-1 text-xs text-red-600">{error}</p> : null}
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-slate-400">输入 / 选择命令，输入 @ 引用实体</p>
-          <div className="flex items-center">
-          {isStreaming ? (
-            <button
-              className="mr-2 rounded-md border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
-              onClick={handleCancel}
-              type="button"
-            >
-              Stop
-            </button>
-          ) : null}
-          <Button
-            aria-label="Send message"
-            className="size-9 px-0"
-            disabled={!content.trim() || isStreaming}
-            type="submit"
-          >
-            <Send aria-hidden="true" size={16} />
-          </Button>
+          <textarea
+            className="max-h-40 w-full resize-none border-0 text-sm text-slate-800 outline-none placeholder:text-slate-400"
+            onChange={(event) => setContent(event.target.value)}
+            placeholder="Ask anything about your observability data..."
+            ref={textareaRef}
+            rows={1}
+            value={content}
+          />
+          {error ? <p className="mt-1 text-xs text-red-600">{error}</p> : null}
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-slate-400">
+              输入 / 选择命令，输入 @ 引用实体
+            </p>
+            <div className="flex items-center">
+              {isStreaming ? (
+                <button
+                  className="mr-2 rounded-md border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                  onClick={handleCancel}
+                  type="button"
+                >
+                  Stop
+                </button>
+              ) : null}
+              <Button
+                aria-label="Send message"
+                className="size-9 px-0"
+                disabled={!content.trim() || isStreaming}
+                type="submit"
+              >
+                <Send aria-hidden="true" size={16} />
+              </Button>
+            </div>
           </div>
-        </div>
         </form>
       </div>
     </div>
@@ -991,7 +1203,10 @@ function ChatSessionList({
             type="search"
             value={search}
           />
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-700" size={17} />
+          <Search
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-700"
+            size={17}
+          />
         </label>
         <Button
           aria-label="New session"
@@ -1029,10 +1244,14 @@ function ChatSessionList({
                 onClick={() => onSelect(conversation.id)}
                 type="button"
               >
-                <div className={cn(
-                  'grid size-9 shrink-0 place-items-center rounded-md text-white',
-                  isActive ? 'bg-emerald-500' : 'bg-violet-100 text-violet-600',
-                )}>
+                <div
+                  className={cn(
+                    'grid size-9 shrink-0 place-items-center rounded-md text-white',
+                    isActive
+                      ? 'bg-emerald-500'
+                      : 'bg-violet-100 text-violet-600',
+                  )}
+                >
                   <MessageSquarePlus aria-hidden="true" size={17} />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -1040,8 +1259,14 @@ function ChatSessionList({
                     {conversation.title}
                   </h2>
                   <div className="mt-1 flex items-center justify-between whitespace-nowrap text-xs text-slate-500">
-                    <span>{conversation.status.toUpperCase() === 'ACTIVE' ? '进行中' : '已归档'}</span>
-                    <span>{formatConversationDate(conversation.updated_at)}</span>
+                    <span>
+                      {conversation.status.toUpperCase() === 'ACTIVE'
+                        ? '进行中'
+                        : '已归档'}
+                    </span>
+                    <span>
+                      {formatConversationDate(conversation.updated_at)}
+                    </span>
                   </div>
                 </div>
               </button>
@@ -1207,6 +1432,13 @@ export default function HomePage(): ReactNode {
   const [title, setTitle] = useState('');
   const [messageRefreshKey, setMessageRefreshKey] = useState(0);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [streamStartedAt, setStreamStartedAt] = useState<number | null>(null);
+  const [streamElapsedMs, setStreamElapsedMs] = useState(0);
+  const [streamCompletedAt, setStreamCompletedAt] = useState<string | null>(
+    null,
+  );
+  const [pendingUserMessage, setPendingUserMessage] =
+    useState<ChatDisplayMessage | null>(null);
   const [investigation, setInvestigation] =
     useState<InvestigationState>(emptyInvestigation);
 
@@ -1264,22 +1496,96 @@ export default function HomePage(): ReactNode {
       page_size: 100,
     }),
   });
-  const currentMessages = useMemo(
+  const persistedMessages = useMemo(
     () =>
-      (messagesQuery.data?.items ?? []).filter(
-        (message) => message.conversation_id === selectedConversationId,
-      ),
+      (messagesQuery.data?.items ?? [])
+        .filter((message) => message.conversation_id === selectedConversationId)
+        .sort((a, b) => {
+          const timeDiff =
+            new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+
+          return timeDiff === 0 ? a.id - b.id : timeDiff;
+        }),
     [messagesQuery.data?.items, selectedConversationId],
   );
 
-  useEffect(() => {
-    const assistantMessage = [...currentMessages]
-      .reverse()
-      .find((message) => !isUserMessage(message.role));
-    const events = assistantMessage?.metadata?.events;
+  const currentMessages = useMemo<ChatDisplayMessage[]>(() => {
+    const messages: ChatDisplayMessage[] = [...persistedMessages];
 
-    setInvestigation(events?.length ? restoreInvestigation(events) : emptyInvestigation);
-  }, [currentMessages, selectedConversationId]);
+    if (
+      pendingUserMessage &&
+      pendingUserMessage.conversation_id === selectedConversationId &&
+      !messages.some((message) =>
+        isSameRecentlyPersistedUserMessage(message, pendingUserMessage),
+      )
+    ) {
+      messages.push(pendingUserMessage);
+    }
+
+    return messages.sort((a, b) => {
+      const timeDiff =
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+
+      return timeDiff === 0 ? a.id - b.id : timeDiff;
+    });
+  }, [pendingUserMessage, persistedMessages, selectedConversationId]);
+
+  useEffect(() => {
+    if (!pendingUserMessage || pendingUserMessage.clientStatus === 'failed') {
+      return;
+    }
+
+    const persistedUserMessage = persistedMessages.some((message) =>
+      isSameRecentlyPersistedUserMessage(message, pendingUserMessage),
+    );
+
+    if (persistedUserMessage) {
+      setPendingUserMessage(null);
+    }
+  }, [pendingUserMessage, persistedMessages]);
+
+  useEffect(() => {
+    setInvestigation(emptyInvestigation);
+    setPendingUserMessage(null);
+    setStreamStartedAt(null);
+    setStreamElapsedMs(0);
+    setStreamCompletedAt(null);
+  }, [selectedConversationId]);
+
+  useEffect(() => {
+    if (!isStreaming || streamStartedAt === null) {
+      return;
+    }
+
+    const updateElapsed = () => {
+      const elapsedMs = Date.now() - streamStartedAt;
+
+      setStreamElapsedMs(
+        elapsedMs >= 10_000 ? Math.floor(elapsedMs / 5000) * 5000 : 0,
+      );
+    };
+
+    updateElapsed();
+    const intervalId = window.setInterval(updateElapsed, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [isStreaming, streamStartedAt]);
+
+  useEffect(() => {
+    if (isStreaming || !investigation.output) {
+      return;
+    }
+
+    const persistedAssistantMessage = persistedMessages.some(
+      (message) =>
+        !isUserMessage(message.role) &&
+        message.content === investigation.output,
+    );
+
+    if (persistedAssistantMessage) {
+      setInvestigation(emptyInvestigation);
+    }
+  }, [investigation.output, isStreaming, persistedMessages]);
 
   useEffect(() => {
     void messagesQuery.refetch();
@@ -1296,13 +1602,37 @@ export default function HomePage(): ReactNode {
     setMessageRefreshKey((value) => value + 1);
   };
 
-  const handleStreamStart = (): void => {
+  const handleStreamStart = (content: string): void => {
+    setPendingUserMessage({
+      clientStatus: 'sending',
+      content,
+      conversation_id: selectedConversationId ?? 0,
+      created_at: new Date().toISOString(),
+      id: -Date.now(),
+      metadata: null,
+      role: 'USER',
+      run_id: null,
+    });
+    const startedAt = Date.now();
+    setStreamStartedAt(startedAt);
+    setStreamElapsedMs(0);
+    setStreamCompletedAt(null);
     setIsStreaming(true);
     setInvestigation(emptyInvestigation);
   };
 
   const handleStreamEnd = (): void => {
+    setStreamElapsedMs((elapsedMs) =>
+      streamStartedAt === null ? elapsedMs : Date.now() - streamStartedAt,
+    );
+    setStreamCompletedAt(new Date().toISOString());
     setIsStreaming(false);
+  };
+
+  const handleStreamError = (): void => {
+    setPendingUserMessage((message) =>
+      message ? { ...message, clientStatus: 'failed' } : message,
+    );
   };
 
   const handleStreamEvent = (event: AESPEvent): void => {
@@ -1364,6 +1694,8 @@ export default function HomePage(): ReactNode {
 
   const error =
     conversationsQuery.error ?? messagesQuery.error ?? updateMutation.error;
+  const streamElapsedLabel =
+    streamElapsedMs > 0 ? formatElapsedDuration(streamElapsedMs) : '';
 
   const openNewSessionDialog = (): void => {
     createMutation.reset();
@@ -1435,10 +1767,20 @@ export default function HomePage(): ReactNode {
                       <h2 className="truncate text-lg font-semibold text-slate-950">
                         {selectedConversation.title}
                       </h2>
-                      <button aria-label="Rename session" className="text-slate-700 hover:text-blue-600" onClick={() => setIsEditingTitle(true)} type="button"><Edit3 size={14} /></button>
+                      <button
+                        aria-label="Rename session"
+                        className="text-slate-700 hover:text-blue-600"
+                        onClick={() => setIsEditingTitle(true)}
+                        type="button"
+                      >
+                        <Edit3 size={14} />
+                      </button>
                       <span className="text-amber-400">★</span>
                     </div>
-                    <p className="mt-1 text-xs text-slate-400">创建于 {formatConversationDate(selectedConversation.created_at)}</p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      创建于{' '}
+                      {formatConversationDate(selectedConversation.created_at)}
+                    </p>
                   </div>
                 )
               ) : (
@@ -1456,9 +1798,21 @@ export default function HomePage(): ReactNode {
             </div>
             {selectedConversation ? (
               <div className="flex shrink-0 items-center gap-2">
-                <Button size="sm" variant="ghost"><Share2 size={14} />Share</Button>
-                <Button size="sm" variant="ghost"><Download size={14} />Export</Button>
-                <Button aria-label="More session actions" size="sm" variant="ghost"><MoreHorizontal size={16} /></Button>
+                <Button size="sm" variant="ghost">
+                  <Share2 size={14} />
+                  Share
+                </Button>
+                <Button size="sm" variant="ghost">
+                  <Download size={14} />
+                  Export
+                </Button>
+                <Button
+                  aria-label="More session actions"
+                  size="sm"
+                  variant="ghost"
+                >
+                  <MoreHorizontal size={16} />
+                </Button>
                 {isEditingTitle ? (
                   <Button
                     aria-label="Save session title"
@@ -1510,6 +1864,8 @@ export default function HomePage(): ReactNode {
           {selectedConversation ? (
             <>
               <ChatMessageList
+                completedAt={streamCompletedAt}
+                elapsedLabel={streamElapsedLabel}
                 isLoading={messagesQuery.isLoading}
                 messages={currentMessages}
                 investigation={investigation}
@@ -1520,6 +1876,7 @@ export default function HomePage(): ReactNode {
                 isStreaming={isStreaming}
                 onSent={refreshMessages}
                 onStreamEvent={handleStreamEvent}
+                onStreamError={handleStreamError}
                 onStreamStart={handleStreamStart}
                 onStreamEnd={handleStreamEnd}
               />

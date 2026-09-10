@@ -63,9 +63,20 @@ class OpenAICompatibleAnswerLLM:
                 response = await client.post(self._endpoint, headers=headers, json=payload)
                 response.raise_for_status()
         except httpx.HTTPError as exc:
-            logger.warning("answer_llm_unavailable", error=str(exc))
+            logger.warning(
+                "answer_llm_unavailable",
+                endpoint=self._endpoint,
+                error=str(exc) or repr(exc),
+                error_type=type(exc).__name__,
+                model=self._model,
+            )
             return None
-        return _extract_message_content(response.json())
+        content = _extract_message_content(response.json())
+        if content is None:
+            logger.warning(
+                "answer_llm_invalid_response", endpoint=self._endpoint, model=self._model
+            )
+        return content
 
 
 class _EventEmitter:
@@ -134,11 +145,11 @@ def create_answer_node(answer_llm: AnswerLLM | None = None) -> AnswerNode:
 
     async def answer_node(state: AgentState) -> AgentState:
         llm = answer_llm or OpenAICompatibleAnswerLLM(state.default_config)
+        emitter = _EventEmitter(state.conversation_id or "conversation", state.run_id or "run")
+        emitter.emit("output.started", {"format": "markdown"})
         response = await llm.answer(state.msg, state.rag_contexts)
         state.msg = response or "暂时无法生成回答，请检查 LLM 配置或稍后重试。"
 
-        emitter = _EventEmitter(state.conversation_id or "conversation", state.run_id or "run")
-        emitter.emit("output.started", {"format": "markdown"})
         emitter.emit("output.progress", {"format": "markdown", "content": state.msg})
         emitter.emit("output.completed", {"format": "markdown", "content": state.msg})
         return state

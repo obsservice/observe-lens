@@ -73,6 +73,29 @@ async def test_stream_run_returns_aesp_failure_when_agent_is_unavailable() -> No
 
 
 @pytest.mark.asyncio
+async def test_stream_run_persists_failed_assistant_response() -> None:
+    service = ConversationService(FakeSession(), UnavailableAgentClient())  # type: ignore[arg-type]
+    captured: list[object] = []
+    service._repository.add = captured.append  # type: ignore[method-assign]
+
+    async def next_sequence(*args: object) -> int:
+        return 2
+
+    service._repository.next_message_sequence = next_sequence  # type: ignore[method-assign]
+
+    events = [event async for event in service.stream_run(7, 11, "Investigate Kafka", tenant_id=7)]
+
+    assert len(events) == 1
+    assert len(captured) == 1
+    message = captured[0]
+    assert message.sender_role == "ASSISTANT"  # type: ignore[union-attr]
+    assert message.status == "FAILED"  # type: ignore[union-attr]
+    assert message.content == "Agent Runtime is unavailable. Verify its URL and status."  # type: ignore[union-attr]
+    assert message.sequence_id == 2  # type: ignore[union-attr]
+    assert message.message_metadata["events"][0]["type"] == "run.failed"  # type: ignore[union-attr]
+
+
+@pytest.mark.asyncio
 async def test_stream_run_persists_assistant_response() -> None:
     service = ConversationService(FakeSession(), AssistantAgentClient())  # type: ignore[arg-type]
     captured: list[object] = []

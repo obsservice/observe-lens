@@ -1,11 +1,7 @@
 import { apiRequest } from '@/lib/api/client';
 
 export type InspectionStatus =
-  | 'DISABLED'
-  | 'ENABLED'
-  | 'FAILED'
-  | 'RUNNING'
-  | 'SUCCESS';
+  'DISABLED' | 'ENABLED' | 'FAILED' | 'RUNNING' | 'SUCCESS';
 
 export interface Inspection {
   created_at: string;
